@@ -5,6 +5,7 @@
 	let ports = [];
 	let selected;
 	let baudrate = 9600;
+	let errorMessage = "";
 
 	onMount(async () => {
 		// const unlistenPorts = await listen<String[]>("available_ports", (event) => {
@@ -14,7 +15,10 @@
 		await invoke("get_ports")
 			.then(async (portNames: String[]) => {
 				ports = portNames;
+
+				// Auto select first port
 				if (ports.length > 0) {
+					selected = ports[0];
 					getPort(ports[0]);
 				}
 			})
@@ -22,7 +26,8 @@
 	});
 
 	async function getPort(port) {
-		await invoke("pick_port", { port: port, baudrate: baudrate }).catch((err) => console.log(err));
+		errorMessage = "";
+		await invoke("pick_port", { portName: port, baudrate: baudrate }).catch((err) => (errorMessage = err));
 	}
 </script>
 
@@ -33,4 +38,7 @@
 		{/each}
 	</select>
 	<input type="number" name="baudrate" id="" bind:value={baudrate} />
+	{#if errorMessage != ""}
+		<span class=" text-red-700">{errorMessage}</span>
+	{/if}
 </div>

@@ -19,7 +19,6 @@
 	let showDebug = false;
 	let showMyBoard = false;
 	let showDirectionButtons = false;
-	let ports = [];
 
 	for (let i = 0; i < rows * cols; i++) {
 		myBoard.push({ index: i, ship: Boolean(i % 3), hit: Boolean(i % 2) });
@@ -77,30 +76,34 @@
 
 <main>
 	<div class=" fixed top-10 left-10 flex flex-col text-left">
-		<label>
+		<PickPort />
+
+		<label class="mt-2 w-fit">
 			Show debug info
 			<input type="checkbox" name="debugInfo" bind:checked={showDebug} class=" w-4 h-4 ml-2" />
 		</label>
-		<label>
+		<label class="w-fit">
 			Show own board
 			<input type="checkbox" name="debugInfo" bind:checked={showMyBoard} class=" w-4 h-4 ml-2" />
 		</label>
-		<label>
+		<label class="w-fit">
 			Show direction buttons
 			<input type="checkbox" name="debugInfo" bind:checked={showDirectionButtons} class=" w-4 h-4 ml-2" />
 		</label>
-		<PickPort />
+
+		<div class="mt-4">
+			{#if showDirectionButtons}
+				<div class="mb-5">
+					<button on:click={() => moveCursor(JoystickDirections.Up)}>Up</button>
+					<button on:click={() => moveCursor(JoystickDirections.Right)}>Right</button>
+					<button on:click={() => moveCursor(JoystickDirections.Down)}>Down</button>
+					<button on:click={() => moveCursor(JoystickDirections.Left)}>Left</button>
+				</div>
+			{/if}
+		</div>
 	</div>
 
-	{#if showDirectionButtons}
-		<div class="mb-5">
-			<button on:click={() => moveCursor(JoystickDirections.Up)}>Up</button>
-			<button on:click={() => moveCursor(JoystickDirections.Right)}>Right</button>
-			<button on:click={() => moveCursor(JoystickDirections.Down)}>Down</button>
-			<button on:click={() => moveCursor(JoystickDirections.Left)}>Left</button>
-		</div>
-	{/if}
-	<div class="game">
+	<div class="game w-fit">
 		{#if showMyBoard}
 			<div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board my grid gap-2">
 				{#each myBoard as cell, i}

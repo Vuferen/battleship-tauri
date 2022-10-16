@@ -1,3 +1,6 @@
+use std::sync::Mutex;
+
+use serialport::SerialPort;
 use tauri::Manager;
 
 enum JoystickDirections {
@@ -6,6 +9,8 @@ enum JoystickDirections {
     Down,
     Left,
 }
+
+pub struct Port(pub Mutex<Option<Box<dyn SerialPort>>>);
 
 pub fn board_state(handle: tauri::AppHandle) {
     let board = [true, false, false, true, false, false, false, false, false];
@@ -42,9 +47,16 @@ pub fn get_ports() -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
-pub fn pick_port(port: String, baudrate: u32) -> Result<String, String> {
-    match serialport::new(&port, baudrate).open() {
-        Ok(_) => todo!(),
-        Err(err) => return Err(format!("Failed to open port {}: {}", port, err).into()),
+pub fn pick_port(
+    port: tauri::State<Port>,
+    port_name: String,
+    baudrate: u32,
+) -> Result<String, String> {
+    match serialport::new(&port_name, baudrate).open() {
+        Ok(res) => {
+            *port.0.lock().unwrap() = Some(res);
+            return Ok("Port saved".into());
+        }
+        Err(err) => return Err(format!("Failed to open port {}: {}", port_name, err).into()),
     };
 }
