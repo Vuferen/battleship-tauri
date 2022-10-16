@@ -22,8 +22,10 @@ pub fn joystick_direction(handle: tauri::AppHandle) {
     handle.emit_all("joystick_direction", direction).unwrap();
 }
 
-pub fn joystick_fire(handle: tauri::AppHandle) {
-    // Tell frontend to fire at current cell
+pub fn joystick_fire(handle: tauri::AppHandle, fire: Option<bool>) {
+    if fire.unwrap_or(false) {
+        handle.emit_all("joystick_fire", {}).unwrap();
+    }
 }
 
 #[tauri::command]
@@ -39,7 +41,6 @@ pub fn get_ports() -> Result<Vec<String>, String> {
             for port_info in port_infos {
                 ports.push(port_info.port_name);
             }
-            // handle.emit_all("available_ports", ports).unwrap();
             return Ok(ports.into());
         }
         Err(err) => return Err(format!("Could not get ports: {}", err).into()),
