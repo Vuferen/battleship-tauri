@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { listen } from "@tauri-apps/api/event";
+	import { listen, emit } from "@tauri-apps/api/event";
 	import { invoke } from "@tauri-apps/api";
 	import { onMount } from "svelte";
 	import PickPort from "./lib/PickPort.svelte";
+	// import { emit } from "@tauri-apps/api/helpers/event";
 
 	enum JoystickDirections {
 		Up,
@@ -17,8 +18,9 @@
 	let theirBoard = [];
 	let cursorPosition = 0;
 	let showDebug = false;
-	let showMyBoard = false;
+	let showMyBoard = true;
 	let showDirectionButtons = false;
+	let shipSizes = [2, 2];
 
 	for (let i = 0; i < rows * cols; i++) {
 		myBoard.push({ index: i, ship: Boolean(i % 3), hit: Boolean(i % 2) });
@@ -33,6 +35,7 @@
 
 	onMount(async () => {
 		const unlistenBoard = await listen<Boolean[]>("board-state", (event) => {
+			console.log(event);
 			for (let i = 0; i < event.payload.length; i++) {
 				myBoard[i].ship = event.payload[i];
 			}
@@ -62,8 +65,15 @@
 				break;
 		}
 	}
+	let gameRunning = false;
+	async function startGame() {
+		gameRunning = true;
+		await invoke("run_game", { rows: rows, cols: cols, shipSizes: shipSizes });
+	}
 
-	function startGame() {}
+	function confirmShips() {
+		emit("confirm-ships");
+	}
 
 	function restartGame() {}
 </script>
@@ -84,7 +94,10 @@
 			Show direction buttons
 			<input type="checkbox" name="debugInfo" bind:checked={showDirectionButtons} class=" w-4 h-4 ml-2" />
 		</label>
-
+		<label class="w-fit mt-2 mb-2">
+			<button on:click={startGame}>Start game</button>
+			<button on:click={confirmShips}>Confirm ship positions</button>
+		</label>
 		<div class="mt-4">
 			{#if showDirectionButtons}
 				<div class="mb-5">
