@@ -1,35 +1,19 @@
-use std::sync::Mutex;
+use std::{sync::Mutex, time::Duration};
 
 use serialport::SerialPort;
-use tauri::Manager;
-
-enum JoystickDirections {
-    Up,
-    Right,
-    Down,
-    Left,
-}
 
 pub struct Port(pub Mutex<Option<Box<dyn SerialPort>>>);
-
-pub fn board_state(handle: tauri::AppHandle) {
-    let board = [true, false, false, true, false, false, false, false, false];
-    handle.emit_all("board-state", board).unwrap();
+pub struct RGB {
+    r: u32,
+    g: u32,
+    b: u32,
 }
 
-pub fn joystick_direction(handle: tauri::AppHandle) {
-    let direction = JoystickDirections::Right as u32;
-    handle.emit_all("joystick_direction", direction).unwrap();
+pub fn set_arduino_leds(leds: Vec<RGB>) {
+    // Send LED info to arduino
 }
 
-pub fn joystick_fire(handle: tauri::AppHandle, fire: Option<bool>) {
-    if fire.unwrap_or(false) {
-        handle.emit_all("joystick_fire", {}).unwrap();
-    }
-}
-
-#[tauri::command]
-pub fn joystick_fire_feedback() {
+pub fn arduino_vibrate(duration: Duration) {
     // Send feedback to arduino
 }
 
@@ -53,7 +37,10 @@ pub fn pick_port(
     port_name: String,
     baudrate: u32,
 ) -> Result<String, String> {
-    match serialport::new(&port_name, baudrate).open() {
+    match serialport::new(&port_name, baudrate)
+        .timeout(Duration::from_millis(10))
+        .open()
+    {
         Ok(res) => {
             *port.0.lock().unwrap() = Some(res);
             return Ok("Port saved".into());
@@ -61,3 +48,6 @@ pub fn pick_port(
         Err(err) => return Err(format!("Failed to open port {}: {}", port_name, err).into()),
     };
 }
+
+// let mut serial_buf: Vec<u8> = vec![0; 32];
+// port.read(serial_buf.as_mut_slice()).expect("Found no data!");

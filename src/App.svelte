@@ -26,22 +26,12 @@
 	for (let i = 0; i < rows * cols; i++) {
 		theirBoard.push({ index: i, ship: Boolean(i % 3), hit: Boolean(i % 2) });
 	}
-	// console.log(myBoard);
 
 	function getCellClasses(cell, cursorPosition) {
 		return (cell.index == cursorPosition ? "selected-cell " : " ") + (cell.ship ? "ship-cell " : " ") + (cell.hit ? "hit-cell " : " ");
 	}
+
 	onMount(async () => {
-		// const unlistenPorts = await listen<String[]>("available_ports", (event) => {
-		// 	ports = event.payload;
-		// 	console.log(ports);
-		// });
-		// await invoke("get_ports")
-		// 	.then((portNames: String[]) => (ports = portNames))
-		// 	.catch((err) => console.log(err));
-
-		// await invoke("pick_port", { port: "COM3", baudrate: 9600 });
-
 		const unlistenBoard = await listen<Boolean[]>("board-state", (event) => {
 			for (let i = 0; i < event.payload.length; i++) {
 				myBoard[i].ship = event.payload[i];
@@ -72,6 +62,10 @@
 				break;
 		}
 	}
+
+	function startGame() {}
+
+	function restartGame() {}
 </script>
 
 <main>
