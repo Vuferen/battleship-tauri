@@ -12,12 +12,19 @@
 		Left,
 	}
 
+	enum GameState {
+		Setup,
+		Fire,
+		End,
+	}
+
 	interface Cell {
 		index: number;
 		ship: boolean;
 		hit: boolean;
 	}
 
+	let gameState = GameState.Setup;
 	let rows = 3;
 	let cols = 3;
 	let myBoard = [];
@@ -29,12 +36,7 @@
 	let shipSizes = [2, 2];
 	let endMessage = "";
 
-	for (let i = 0; i < rows * cols; i++) {
-		myBoard.push({ index: i, ship: false, hit: false });
-	}
-	for (let i = 0; i < rows * cols; i++) {
-		theirBoard.push({ index: i, ship: false, hit: false });
-	}
+	createEmptyBoards();
 
 	function getCellClasses(cell, cursorPosition) {
 		return (cell.index == cursorPosition ? "selected-cell " : " ") + (cell.ship ? "ship-cell " : " ") + (cell.hit ? "hit-cell " : " ");
@@ -50,56 +52,69 @@
 		// const unlistenJoystick = await listen<Number>("joystick_direction", (event) => {
 		// 	moveCursor(event.payload as JoystickDirections);
 		// });
-		await invoke("set_cursor_pos", { cursorPosition: cursorPosition });
-		await invoke("set_cols", { cols: cols });
-		await invoke("set_rows", { rows: rows });
-		await invoke("run_game", { rows: rows, cols: cols, shipSizes: shipSizes });
 
 		await listen<number>("enemy-board-hit", (event) => {
+			console.log("enemy-board-hit");
 			theirBoard[event.payload].hit = true;
 			theirBoard[event.payload].ship = true;
+			theirBoard = theirBoard;
 		});
 		await listen<number>("enemy-board-miss", (event) => {
+			console.log("enemy-board-miss");
 			theirBoard[event.payload].hit = true;
+			theirBoard = theirBoard;
 		});
 		await listen<number>("my-board-hit", (event) => {
+			console.log("my-board-hit");
 			myBoard[event.payload].hit = true;
+			myBoard = myBoard;
 		});
 		await listen<boolean>("game-end", (event) => {
+			console.log("game-end");
 			if (event.payload) {
 				endMessage = "Victory!";
 			} else {
 				endMessage = "Defeat :(";
 			}
 		});
+		await listen<number>("update-cursor-pos", (event) => {
+			cursorPosition = event.payload;
+		});
+
+		await invoke("set_cursor_pos", { newPos: cursorPosition });
+		await invoke("set_cols", { newCols: cols });
+		await invoke("set_rows", { newRows: rows });
+		await runGame();
 	});
 
-	function moveCursor(direction: JoystickDirections) {
-		switch (direction) {
-			case JoystickDirections.Up:
-				cursorPosition += cursorPosition - cols < 0 ? cols * (rows - 1) : -cols;
-				break;
-			case JoystickDirections.Right:
-				cursorPosition += (cursorPosition + 1) % cols ? 1 : -cols + 1;
-				break;
-			case JoystickDirections.Down:
-				cursorPosition += cursorPosition + cols > cols * rows - 1 ? -cols * (rows - 1) : cols;
-				break;
-			case JoystickDirections.Left:
-				cursorPosition += cursorPosition % cols ? -1 : cols - 1;
-				break;
+	async function runGame() {
+		createEmptyBoards();
+		gameState = GameState.Fire;
+		await invoke("run_game", { shipSizes: shipSizes }).then(() => (gameState = GameState.End));
+	}
 
-			default:
-				break;
+	async function moveCursor(direction: JoystickDirections) {
+		await invoke("move_cursor", { direction: direction });
+	}
+
+	function createEmptyBoards() {
+		myBoard = [];
+		theirBoard = [];
+		for (let i = 0; i < rows * cols; i++) {
+			myBoard.push({ index: i, ship: false, hit: false });
+		}
+		for (let i = 0; i < rows * cols; i++) {
+			theirBoard.push({ index: i, ship: false, hit: false });
 		}
 	}
 
-	// function confirmShips() {
-	// 	emit("confirm-ships");
-	// }
-
 	function fire() {
-		emit("fire");
+		if (gameState == GameState.End) {
+			endMessage = "";
+			runGame();
+		} else {
+			emit("fire");
+		}
 	}
 </script>
 
