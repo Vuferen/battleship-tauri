@@ -42,15 +42,17 @@
 
 	onMount(async () => {
 		const unlistenBoard = await listen<Boolean[]>("board-state", (event) => {
-			console.log(event);
 			for (let i = 0; i < event.payload.length; i++) {
 				myBoard[i].ship = event.payload[i];
 			}
 		});
 
-		const unlistenJoystick = await listen<Number>("joystick_direction", (event) => {
-			moveCursor(event.payload as JoystickDirections);
-		});
+		// const unlistenJoystick = await listen<Number>("joystick_direction", (event) => {
+		// 	moveCursor(event.payload as JoystickDirections);
+		// });
+		await invoke("set_cursor_pos", { cursorPosition: cursorPosition });
+		await invoke("set_cols", { cols: cols });
+		await invoke("set_rows", { rows: rows });
 		await invoke("run_game", { rows: rows, cols: cols, shipSizes: shipSizes });
 
 		await listen<number>("enemy-board-hit", (event) => {

@@ -1,4 +1,5 @@
 use rand::Rng;
+use serde::Deserialize;
 use serialport_manager::Port;
 use std::{
     sync::{mpsc, Mutex},
@@ -8,7 +9,21 @@ use std::{
 use tauri::{Event, Manager};
 
 use crate::serialport_manager;
-
+pub struct CursorPos(pub Mutex<Option<usize>>);
+#[tauri::command]
+pub fn set_cursor_pos(cursor_pos: tauri::State<'_, CursorPos>, new_pos: usize) {
+    *cursor_pos.0.lock().unwrap() = Some(new_pos);
+}
+pub struct Cols(pub Mutex<Option<usize>>);
+#[tauri::command]
+pub fn set_cols(cols: tauri::State<'_, Cols>, new_cols: usize) {
+    *cols.0.lock().unwrap() = Some(new_cols);
+}
+pub struct Rows(pub Mutex<Option<usize>>);
+#[tauri::command]
+pub fn set_rows(rows: tauri::State<'_, Rows>, new_rows: usize) {
+    *rows.0.lock().unwrap() = Some(new_rows);
+}
 struct Board {
     ships: Vec<bool>,
     hits: Vec<bool>,
@@ -19,10 +34,12 @@ struct Board {
 pub fn run_game(
     handle: tauri::AppHandle,
     port: tauri::State<'_, Port>,
-    rows: u8,
-    cols: u8,
+    rows_state: tauri::State<'_, Rows>,
+    cols_state: tauri::State<'_, Cols>,
     ship_sizes: Vec<u8>,
 ) {
+    let rows = rows_state.0.lock().unwrap().unwrap().clone();
+    let cols = cols_state.0.lock().unwrap().unwrap().clone();
     if port.0.lock().unwrap().is_some() || true {
         let mut total_ships = 0;
         for ship in &ship_sizes {
@@ -53,12 +70,12 @@ pub fn run_game(
                         match rot {
                             0 => {
                                 //place ship going up from pos
-                                if pos as u8 > cols * (ship - 1) {
+                                if pos > cols * (*ship - 1) as usize {
                                     if try_place_ship(
                                         &(*ship as usize),
                                         &mut their_board,
                                         pos,
-                                        cols as usize,
+                                        cols,
                                         &|pos: usize, i: usize, cols: usize| pos - i * cols,
                                     ) {
                                         ship_placed = true;
@@ -67,12 +84,12 @@ pub fn run_game(
                             }
                             1 => {
                                 //place ship going right from pos
-                                if pos as u8 % cols <= cols - ship {
+                                if pos % cols <= cols - (*ship as usize) {
                                     if try_place_ship(
                                         &(*ship as usize),
                                         &mut their_board,
                                         pos,
-                                        cols as usize,
+                                        cols,
                                         &|pos: usize, i: usize, _cols: usize| pos + i,
                                     ) {
                                         ship_placed = true;
@@ -81,12 +98,12 @@ pub fn run_game(
                             }
                             2 => {
                                 //place ship going down from pos
-                                if pos as u8 + cols * (ship - 1) <= cols * rows - 1 {
+                                if pos + cols * (*ship - 1) as usize <= cols * rows - 1 {
                                     if try_place_ship(
                                         &(*ship as usize),
                                         &mut their_board,
                                         pos,
-                                        cols as usize,
+                                        cols,
                                         &|pos: usize, i: usize, cols: usize| pos + i * cols,
                                     ) {
                                         ship_placed = true;
@@ -95,12 +112,12 @@ pub fn run_game(
                             }
                             3 => {
                                 //place ship going left from pos
-                                if pos as u8 % cols > (ship - 1) {
+                                if pos % cols > (*ship - 1) as usize {
                                     if try_place_ship(
                                         &(*ship as usize),
                                         &mut their_board,
                                         pos,
-                                        cols as usize,
+                                        cols,
                                         &|pos: usize, i: usize, _cols: usize| pos - i,
                                     ) {
                                         ship_placed = true;
@@ -173,17 +190,15 @@ pub fn run_game(
                         if *hit {
                             // Check surrounding tiles
                             let mut target = None;
-                            if i >= cols as usize && (&my_board).hits[i - cols as usize] {
+                            if i >= cols && (&my_board).hits[i - cols] {
                                 // Up
-                                target = Some(i - cols as usize);
-                            } else if i + 1 < (cols * rows) as usize && (&my_board).hits[i + 1] {
+                                target = Some(i - cols);
+                            } else if i + 1 < (cols * rows) && (&my_board).hits[i + 1] {
                                 // Right
                                 target = Some(i + 1);
-                            } else if (i + cols as usize) < (cols * rows) as usize
-                                && (&my_board).hits[i + cols as usize]
-                            {
+                            } else if (i + cols) < (cols * rows) && (&my_board).hits[i + cols] {
                                 // Down
-                                target = Some(i + cols as usize);
+                                target = Some(i + cols);
                             } else if i >= 1 && (&my_board).hits[i - 1] {
                                 // Left
                                 target = Some(i - 1);
@@ -226,12 +241,16 @@ pub fn run_game(
     }
 }
 
-enum JoystickDirections {
+#[derive(Deserialize)]
+pub enum JoystickDirections {
     Up,
     Right,
     Down,
     Left,
 }
+
+#[tauri::command]
+pub fn move_cursor(direction: JoystickDirections) {}
 
 // pub fn board_state(handle: tauri::AppHandle, board: Vec<bool>) {
 //     // let board = [true, false, false, true, false, false, false, false, false];
