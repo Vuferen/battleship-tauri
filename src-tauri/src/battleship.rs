@@ -146,6 +146,8 @@ pub async fn run_game(
             // Get ship positions from arduino
             (&mut my_board).ships[0] = true;
             (&mut my_board).ships[1] = true;
+            (&mut my_board).ships[5] = true;
+            (&mut my_board).ships[8] = true;
 
             // Send positions to frontend
             handle
@@ -153,7 +155,7 @@ pub async fn run_game(
                 .unwrap();
 
             // Check if game should start (change to listen for arduino fire)
-            if rx.try_recv().is_ok() {
+            if rx.try_recv().is_ok() || true {
                 // setup_handle.unlisten(event_handler);
                 break;
             }
@@ -169,7 +171,6 @@ pub async fn run_game(
             let cursor_pos = cursor_pos_state_clone.0.lock().unwrap().unwrap();
             // Game has started, wait for fire command
             if rx.try_recv().is_ok() && !((&mut their_board).hits[cursor_pos]) {
-                println!("Cursor: {}", cursor_pos);
                 // Handle fire
                 // Change hit state
                 (&mut their_board).hits[cursor_pos] = true;
@@ -185,20 +186,30 @@ pub async fn run_game(
                 // Do enemy turn
                 let mut has_fired = false;
                 // Check if ship hit
+                let mut ship_hits = vec![false; (rows * cols).into()];
+
                 for (i, hit) in (&my_board).hits.clone().iter().enumerate() {
+                    if (&my_board).ships[i] && *hit {
+                        ship_hits[i] = true;
+                    } else {
+                        ship_hits[i] = false;
+                    }
+                }
+
+                for (i, hit) in ship_hits.iter().enumerate() {
                     if *hit && !has_fired {
                         // Check surrounding tiles
                         let mut target = None;
-                        if i >= cols && (&my_board).hits[i - cols] {
+                        if i >= cols && !(&my_board).hits[i - cols] {
                             // Up
                             target = Some(i - cols);
-                        } else if i + 1 < (cols * rows) && (&my_board).hits[i + 1] {
+                        } else if (i + 1) % cols != 0 && !(&my_board).hits[i + 1] {
                             // Right
                             target = Some(i + 1);
-                        } else if (i + cols) < (cols * rows) && (&my_board).hits[i + cols] {
+                        } else if (i + cols) < (cols * rows) && !(&my_board).hits[i + cols] {
                             // Down
                             target = Some(i + cols);
-                        } else if i >= 1 && (&my_board).hits[i - 1] {
+                        } else if i % cols != 0 && !(&my_board).hits[i - 1] {
                             // Left
                             target = Some(i - 1);
                         }
@@ -228,14 +239,14 @@ pub async fn run_game(
                 }
 
                 // Check game end condition, if ships left == 0
-                if (&my_board).ships_left == 0 {
-                    // Defeat
-                    handle.emit_all("game-end", false).unwrap();
-                    break;
-                }
                 if (&their_board).ships_left == 0 {
                     // Victory
                     handle.emit_all("game-end", true).unwrap();
+                    break;
+                }
+                if (&my_board).ships_left == 0 {
+                    // Defeat
+                    handle.emit_all("game-end", false).unwrap();
                     break;
                 }
             }

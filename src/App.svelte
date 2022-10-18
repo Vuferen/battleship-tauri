@@ -84,7 +84,6 @@
 		await invoke("set_cursor_pos", { newPos: cursorPosition });
 		await invoke("set_cols", { newCols: cols });
 		await invoke("set_rows", { newRows: rows });
-		await runGame();
 	});
 
 	async function runGame() {
@@ -109,7 +108,7 @@
 	}
 
 	function fire() {
-		if (gameState == GameState.End) {
+		if (gameState != GameState.Fire) {
 			endMessage = "";
 			runGame();
 		} else {
