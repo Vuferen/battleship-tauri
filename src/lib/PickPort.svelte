@@ -8,10 +8,6 @@
 	let errorMessage = "";
 
 	onMount(async () => {
-		// const unlistenPorts = await listen<String[]>("available_ports", (event) => {
-		// 	ports = event.payload;
-		// 	console.log(ports);
-		// });
 		await invoke("get_ports")
 			.then(async (portNames: String[]) => {
 				ports = portNames;

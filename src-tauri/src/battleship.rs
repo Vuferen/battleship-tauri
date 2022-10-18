@@ -5,7 +5,7 @@ use std::{
     thread,
     time::Duration,
 };
-use tauri::Manager;
+use tauri::{Event, Manager};
 
 use crate::serialport_manager;
 
@@ -40,133 +40,187 @@ pub fn run_game(
             ships_left: total_ships,
         };
 
-        // Setup stage
+        //Place enemy ships
+        {
+            for ship in &ship_sizes {
+                let mut ship_placed = false;
+                while !ship_placed {
+                    let mut rng = rand::thread_rng();
+                    let pos: usize = rng.gen_range(0..=(cols * rows) - 1).into();
+                    let rot: usize = rng.gen_range(0..=3);
+
+                    if !their_board.ships[pos] {
+                        match rot {
+                            0 => {
+                                //place ship going up from pos
+                                if pos as u8 > cols * (ship - 1) {
+                                    if try_place_ship(
+                                        &(*ship as usize),
+                                        &mut their_board,
+                                        pos,
+                                        cols as usize,
+                                        &|pos: usize, i: usize, cols: usize| pos - i * cols,
+                                    ) {
+                                        ship_placed = true;
+                                    }
+                                }
+                            }
+                            1 => {
+                                //place ship going right from pos
+                                if pos as u8 % cols <= cols - ship {
+                                    if try_place_ship(
+                                        &(*ship as usize),
+                                        &mut their_board,
+                                        pos,
+                                        cols as usize,
+                                        &|pos: usize, i: usize, _cols: usize| pos + i,
+                                    ) {
+                                        ship_placed = true;
+                                    }
+                                }
+                            }
+                            2 => {
+                                //place ship going down from pos
+                                if pos as u8 + cols * (ship - 1) <= cols * rows - 1 {
+                                    if try_place_ship(
+                                        &(*ship as usize),
+                                        &mut their_board,
+                                        pos,
+                                        cols as usize,
+                                        &|pos: usize, i: usize, cols: usize| pos + i * cols,
+                                    ) {
+                                        ship_placed = true;
+                                    }
+                                }
+                            }
+                            3 => {
+                                //place ship going left from pos
+                                if pos as u8 % cols > (ship - 1) {
+                                    if try_place_ship(
+                                        &(*ship as usize),
+                                        &mut their_board,
+                                        pos,
+                                        cols as usize,
+                                        &|pos: usize, i: usize, _cols: usize| pos - i,
+                                    ) {
+                                        ship_placed = true;
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+
         let (tx, rx) = mpsc::channel();
-        let event_handler = handle.listen_global("confirm-ships", move |_| {
+        handle.listen_global("fire", move |_| {
             match tx.send(true) {
                 Ok(_) => {}
                 Err(err) => println!("Error stopping thread: {}", err),
             };
         });
 
-        let setup = thread::spawn(move || {
+        thread::spawn(move || {
             // Place own ships
             loop {
                 // Get ship positions from arduino
-                my_board.ships[0] = true;
-                my_board.ships[1] = true;
+                (&mut my_board).ships[0] = true;
+                (&mut my_board).ships[1] = true;
 
                 // Send positions to frontend
                 handle
-                    .emit_all("board-state", my_board.ships.clone())
+                    .emit_all("board-state", (&my_board).ships.clone())
                     .unwrap();
 
                 // Check if game should start (change to listen for arduino fire)
                 if rx.try_recv().is_ok() {
-                    handle.unlisten(event_handler);
+                    // setup_handle.unlisten(event_handler);
                     break;
                 }
                 thread::sleep(Duration::from_nanos(1));
             }
+            handle
+                .emit_all("board-state", (&my_board).ships.clone())
+                .unwrap();
 
-            //Place enemy ships
-            {
-                for ship in &ship_sizes {
-                    let mut ship_placed = false;
-                    while !ship_placed {
-                        let mut rng = rand::thread_rng();
-                        let pos: usize = rng.gen_range(0..=(cols * rows) - 1).into();
-                        let rot: usize = rng.gen_range(0..=3);
+            let cursor_pos = 0;
+            // let (tx, rx) = mpsc::channel();
+            // let event_handler = handle.listen_global("fire", move |_| match tx.send(true) {
+            //     Ok(_) => {}
+            //     Err(err) => println!("Error stopping thread: {}", err),
+            // });
+            loop {
+                // Game has started, wait for fire command
+                if rx.try_recv().is_ok() && !(&mut their_board).hits[cursor_pos] {
+                    // Handle fire
+                    // Change hit state
+                    (&mut their_board).hits[cursor_pos] = true;
+                    if their_board.ships[cursor_pos] {
+                        // Enemy ship was hit
+                        their_board.ships_left -= 1;
+                        handle.emit_all("enemy-board-hit", cursor_pos).unwrap();
+                    } else {
+                        // Miss
+                        handle.emit_all("enemy-board-miss", cursor_pos).unwrap();
+                    }
 
-                        if !their_board.ships[pos] {
-                            match rot {
-                                0 => {
-                                    //place ship going up from pos
-                                    if pos as u8 > cols * (ship - 1) {
-                                        if try_place_ship(
-                                            &(*ship as usize),
-                                            &mut their_board,
-                                            pos,
-                                            cols as usize,
-                                            &|pos: usize, i: usize, cols: usize| pos - i * cols,
-                                        ) {
-                                            ship_placed = true;
-                                        }
-                                    }
-                                }
-                                1 => {
-                                    //place ship going right from pos
-                                    if pos as u8 % cols <= cols - ship {
-                                        if try_place_ship(
-                                            &(*ship as usize),
-                                            &mut their_board,
-                                            pos,
-                                            cols as usize,
-                                            &|pos: usize, i: usize, _cols: usize| pos + i,
-                                        ) {
-                                            ship_placed = true;
-                                        }
-                                    }
-                                }
-                                2 => {
-                                    //place ship going down from pos
-                                    if pos as u8 + cols * (ship - 1) <= cols * rows - 1 {
-                                        if try_place_ship(
-                                            &(*ship as usize),
-                                            &mut their_board,
-                                            pos,
-                                            cols as usize,
-                                            &|pos: usize, i: usize, cols: usize| pos + i * cols,
-                                        ) {
-                                            ship_placed = true;
-                                        }
-                                    }
-                                }
-                                3 => {
-                                    //place ship going left from pos
-                                    if pos as u8 % cols > (ship - 1) {
-                                        if try_place_ship(
-                                            &(*ship as usize),
-                                            &mut their_board,
-                                            pos,
-                                            cols as usize,
-                                            &|pos: usize, i: usize, _cols: usize| pos - i,
-                                        ) {
-                                            ship_placed = true;
-                                        }
-                                    }
-                                }
-                                _ => {}
+                    // Do enemy turn
+                    let mut has_fired = false;
+                    // Check if ship hit
+                    for (i, hit) in (&my_board).hits.clone().iter().enumerate() {
+                        if *hit {
+                            // Check surrounding tiles
+                            let mut target = None;
+                            if i >= cols as usize && (&my_board).hits[i - cols as usize] {
+                                // Up
+                                target = Some(i - cols as usize);
+                            } else if i + 1 < (cols * rows) as usize && (&my_board).hits[i + 1] {
+                                // Right
+                                target = Some(i + 1);
+                            } else if (i + cols as usize) < (cols * rows) as usize
+                                && (&my_board).hits[i + cols as usize]
+                            {
+                                // Down
+                                target = Some(i + cols as usize);
+                            } else if i >= 1 && (&my_board).hits[i - 1] {
+                                // Left
+                                target = Some(i - 1);
+                            }
+                            // Hit surrounding tile
+                            if target.is_some() {
+                                (&mut my_board).hits[target.unwrap()] = true;
+                                (&mut my_board).ships_left -= 1;
+                                has_fired = true;
+                                handle.emit_all("my-board-hit", target.unwrap()).unwrap();
                             }
                         }
                     }
+                    // Hit random cell
+                    while !has_fired {
+                        let mut rng = rand::thread_rng();
+                        let pos: usize = rng.gen_range(0..=(cols * rows) - 1).into();
+                        if !(&my_board).hits[pos] {
+                            (&mut my_board).hits[pos] = true;
+                            (&mut my_board).ships_left -= 1;
+                            has_fired = true;
+                            handle.emit_all("my-board-hit", pos).unwrap();
+                        }
+                    }
+
+                    // Check game end condition, if ships left == 0
+                    if (&my_board).ships_left == 0 {
+                        // Defeat
+                        handle.emit_all("game-end", false).unwrap();
+                        break;
+                    }
+                    if (&their_board).ships_left == 0 {
+                        // Victory
+                        handle.emit_all("game-end", true).unwrap();
+                        break;
+                    }
                 }
-            }
-            handle.emit_all("board-state", my_board.ships).unwrap();
-        });
-
-        // Game loop
-        thread::spawn(move || {
-            setup.join().unwrap();
-            loop {
-                // Game has started, wait for fire command
-                // Handle fire
-                //      Change hit state
-                //      Send hit state to frontend
-                // Do enemy turn
-                //      Check if ship hit
-                //          Check surrounding tiles
-                //              Hit surrounding tiles
-                //          Hit random cell
-
-                // Check game end condition, if ships left == 0
-                // if my_board.ships_left == 0 {
-                //     // Defeat
-                // }
-                // if their_board.ships_left == 0 {
-                //     // Victory
-                // }
-                break;
             }
         });
     }
@@ -184,16 +238,16 @@ enum JoystickDirections {
 //     handle.emit_all("board-state", board).unwrap();
 // }
 
-pub fn joystick_direction(handle: tauri::AppHandle) {
-    let direction = JoystickDirections::Right as u32;
-    handle.emit_all("joystick_direction", direction).unwrap();
-}
+// pub fn joystick_direction(handle: tauri::AppHandle) {
+//     let direction = JoystickDirections::Right as u32;
+//     handle.emit_all("joystick_direction", direction).unwrap();
+// }
 
-pub fn joystick_fire(handle: tauri::AppHandle, fire: Option<bool>) {
-    if fire.unwrap_or(false) {
-        handle.emit_all("joystick_fire", {}).unwrap();
-    }
-}
+// pub fn joystick_fire(handle: tauri::AppHandle, fire: Option<bool>) {
+//     if fire.unwrap_or(false) {
+//         handle.emit_all("joystick_fire", {}).unwrap();
+//     }
+// }
 
 fn try_place_ship(
     ship: &usize,
