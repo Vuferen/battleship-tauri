@@ -72,40 +72,73 @@ pub fn run_game(
             //Place enemy ships
             {
                 for ship in &ship_sizes {
-                    loop {
+                    let mut ship_placed = false;
+                    while !ship_placed {
                         let mut rng = rand::thread_rng();
                         let pos: usize = rng.gen_range(0..=(cols * rows) - 1).into();
                         let rot: usize = rng.gen_range(0..=3);
+
                         if !their_board.ships[pos] {
                             match rot {
                                 0 => {
+                                    //place ship going up from pos
                                     if pos as u8 > cols * (ship - 1) {
-                                        //place ship going up from pos
-                                        // todo!();
+                                        if try_place_ship(
+                                            &(*ship as usize),
+                                            &mut their_board,
+                                            pos,
+                                            cols as usize,
+                                            &|pos: usize, i: usize, cols: usize| pos - i * cols,
+                                        ) {
+                                            ship_placed = true;
+                                        }
                                     }
                                 }
                                 1 => {
+                                    //place ship going right from pos
                                     if pos as u8 % cols <= cols - ship {
-                                        //place ship going right from pos
-                                        // todo!();
+                                        if try_place_ship(
+                                            &(*ship as usize),
+                                            &mut their_board,
+                                            pos,
+                                            cols as usize,
+                                            &|pos: usize, i: usize, _cols: usize| pos + i,
+                                        ) {
+                                            ship_placed = true;
+                                        }
                                     }
                                 }
                                 2 => {
+                                    //place ship going down from pos
                                     if pos as u8 + cols * (ship - 1) <= cols * rows - 1 {
-                                        //place ship going down from pos
-                                        // todo!();
+                                        if try_place_ship(
+                                            &(*ship as usize),
+                                            &mut their_board,
+                                            pos,
+                                            cols as usize,
+                                            &|pos: usize, i: usize, cols: usize| pos + i * cols,
+                                        ) {
+                                            ship_placed = true;
+                                        }
                                     }
                                 }
                                 3 => {
+                                    //place ship going left from pos
                                     if pos as u8 % cols > (ship - 1) {
-                                        //place ship going left from pos
-                                        // todo!();
+                                        if try_place_ship(
+                                            &(*ship as usize),
+                                            &mut their_board,
+                                            pos,
+                                            cols as usize,
+                                            &|pos: usize, i: usize, _cols: usize| pos - i,
+                                        ) {
+                                            ship_placed = true;
+                                        }
                                     }
                                 }
                                 _ => {}
                             }
                         }
-                        break;
                     }
                 }
             }
@@ -127,12 +160,12 @@ pub fn run_game(
                 //          Hit random cell
 
                 // Check game end condition, if ships left == 0
-                if my_board.ships_left == 0 {
-                    // Defeat
-                }
-                if their_board.ships_left == 0 {
-                    // Victory
-                }
+                // if my_board.ships_left == 0 {
+                //     // Defeat
+                // }
+                // if their_board.ships_left == 0 {
+                //     // Victory
+                // }
                 break;
             }
         });
@@ -160,4 +193,26 @@ pub fn joystick_fire(handle: tauri::AppHandle, fire: Option<bool>) {
     if fire.unwrap_or(false) {
         handle.emit_all("joystick_fire", {}).unwrap();
     }
+}
+
+fn try_place_ship(
+    ship: &usize,
+    board: &mut Board,
+    pos: usize,
+    cols: usize,
+    f: &dyn Fn(usize, usize, usize) -> usize,
+) -> bool {
+    let mut can_place = true;
+    for i in 0..*ship {
+        if board.ships[f(pos, i, cols)] {
+            can_place = false;
+        }
+    }
+    if can_place {
+        for i in 0..*ship {
+            board.ships[f(pos, i, cols)] = true;
+        }
+        return true;
+    }
+    return false;
 }

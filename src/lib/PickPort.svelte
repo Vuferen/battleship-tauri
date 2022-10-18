@@ -15,7 +15,6 @@
 		await invoke("get_ports")
 			.then(async (portNames: String[]) => {
 				ports = portNames;
-
 				// Auto select first port
 				if (ports.length > 0) {
 					selected = ports[0];
