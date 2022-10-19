@@ -157,37 +157,9 @@
 		</div>
 	</div>
 
-	<div class="game w-fit">
-		<span>{endMessage}</span>
-		{#if showMyBoard}
-			<div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board my grid gap-2">
-				{#each myBoard as cell, i}
-					<div class="w-20 h-20 text-sm bg-slate-500 rounded-xl grid content-center shadow-md {getCellClasses(cell, cursorPosition)}">
-						{#if showDebug}
-							<p>{cell.index}</p>
-							<p>Ship: {cell.ship}</p>
-							<p>Hit: {cell.hit}</p>
-						{/if}
-					</div>
-				{/each}
-			</div>
-		{/if}
-		<div style="transform: translate({0}px, {0}px); width: {boardSize}px; height: {boardSize}px;" class=" relative">
-			{#each theirBoard as cell, i}
-				<CircleSector
-					width={(0.5 * boardSize) / rows}
-					color={getCellColor(cell)}
-					sections={cols}
-					radius={((0.5 * boardSize) / rows) * (1 + Math.floor(i / cols))}
-					n={i % cols}
-					gap={boardGap}
-					center={boardSize / 2}
-					selected={cursorPosition == i}
-				/>
-			{/each}
-		</div>
-		<!-- <div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board their grid gap-2">
-			{#each theirBoard as cell, i}
+	{#if gameState == GameState.Setup}
+		<div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board my grid gap-2">
+			{#each myBoard as cell, i}
 				<div class="w-20 h-20 text-sm bg-slate-500 rounded-xl grid content-center shadow-md {getCellClasses(cell, cursorPosition)}">
 					{#if showDebug}
 						<p>{cell.index}</p>
@@ -196,8 +168,51 @@
 					{/if}
 				</div>
 			{/each}
-		</div> -->
-	</div>
+		</div>
+	{:else if gameState == GameState.Fire}
+		<div class="game w-fit">
+			{#if showMyBoard}
+				<div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board my grid gap-2">
+					{#each myBoard as cell, i}
+						<div class="w-20 h-20 text-sm bg-slate-500 rounded-xl grid content-center shadow-md {getCellClasses(cell, cursorPosition)}">
+							{#if showDebug}
+								<p>{cell.index}</p>
+								<p>Ship: {cell.ship}</p>
+								<p>Hit: {cell.hit}</p>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			{/if}
+			<div style="transform: translate({0}px, {0}px); width: {boardSize}px; height: {boardSize}px;" class=" relative">
+				{#each theirBoard as cell, i}
+					<CircleSector
+						width={(0.5 * boardSize) / rows}
+						color={getCellColor(cell)}
+						sections={cols}
+						radius={((0.5 * boardSize) / rows) * (1 + Math.floor(i / cols))}
+						n={i % cols}
+						gap={boardGap}
+						center={boardSize / 2}
+						selected={cursorPosition == i}
+					/>
+				{/each}
+			</div>
+			<!-- <div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board their grid gap-2">
+				{#each theirBoard as cell, i}
+					<div class="w-20 h-20 text-sm bg-slate-500 rounded-xl grid content-center shadow-md {getCellClasses(cell, cursorPosition)}">
+						{#if showDebug}
+							<p>{cell.index}</p>
+							<p>Ship: {cell.ship}</p>
+							<p>Hit: {cell.hit}</p>
+						{/if}
+					</div>
+				{/each}
+			</div> -->
+		</div>
+	{:else if gameState == GameState.End}
+		<h1>{endMessage}</h1>
+	{/if}
 </main>
 
 <style>
