@@ -3,6 +3,7 @@
 	import { event, invoke } from "@tauri-apps/api";
 	import { onMount } from "svelte";
 	import PickPort from "./lib/PickPort.svelte";
+	import CircleSector from "./lib/CircleSector.svelte";
 	// import { emit } from "@tauri-apps/api/helpers/event";
 
 	enum JoystickDirections {
@@ -35,6 +36,8 @@
 	let showDirectionButtons = false;
 	let shipSizes = [2, 2];
 	let endMessage = "";
+	let boardSize = 256;
+	let boardGap = 5;
 
 	createEmptyBoards();
 
@@ -115,6 +118,10 @@
 			emit("fire");
 		}
 	}
+
+	function getCellColor(cell) {
+		return cell.ship && cell.hit ? "#dc143c" : cell.hit ? "rgb(63, 65, 68)" : "rgb(100 116 139)";
+	}
 </script>
 
 <main>
@@ -165,7 +172,21 @@
 				{/each}
 			</div>
 		{/if}
-		<div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board their grid gap-2">
+		<div style="transform: translate({0}px, {0}px); width: {boardSize}px; height: {boardSize}px;" class=" relative">
+			{#each theirBoard as cell, i}
+				<CircleSector
+					width={(0.5 * boardSize) / rows}
+					color={getCellColor(cell)}
+					sections={cols}
+					radius={((0.5 * boardSize) / rows) * (1 + Math.floor(i / cols))}
+					n={i % cols}
+					gap={boardGap}
+					center={boardSize / 2}
+					selected={cursorPosition == i}
+				/>
+			{/each}
+		</div>
+		<!-- <div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board their grid gap-2">
 			{#each theirBoard as cell, i}
 				<div class="w-20 h-20 text-sm bg-slate-500 rounded-xl grid content-center shadow-md {getCellClasses(cell, cursorPosition)}">
 					{#if showDebug}
@@ -175,7 +196,7 @@
 					{/if}
 				</div>
 			{/each}
-		</div>
+		</div> -->
 	</div>
 </main>
 
@@ -189,7 +210,7 @@
 		border: solid 3px rgb(255, 255, 255);
 	}
 	main .ship-cell.hit-cell {
-		background-color: crimson;
+		background-color: #dc143c;
 	}
 	.my .ship-cell {
 		background-color: rgb(128, 130, 133);
