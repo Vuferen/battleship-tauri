@@ -6,7 +6,7 @@ use std::{
     thread,
     time::Duration,
 };
-use tauri::{Event, Manager};
+use tauri::Manager;
 
 use crate::serialport_manager;
 pub struct CursorPos(pub Mutex<Option<usize>>);
@@ -319,38 +319,7 @@ pub fn move_cursor(
     handle
         .emit_all("update-cursor-pos", cursor_pos as i32 + change)
         .unwrap();
-    // case JoystickDirections.Up:
-    //     cursorPosition += cursorPosition - cols < 0 ? cols * (rows - 1) : -cols;
-    //     break;
-    // case JoystickDirections.Right:
-    //     cursorPosition += (cursorPosition + 1) % cols ? 1 : -cols + 1;
-    //     break;
-    // case JoystickDirections.Down:
-    //     cursorPosition += cursorPosition + cols > cols * rows - 1 ? -cols * (rows - 1) : cols;
-    //     break;
-    // case JoystickDirections.Left:
-    //     cursorPosition += cursorPosition % cols ? -1 : cols - 1;
-    //     break;
-
-    // default:
-    //     break;
 }
-
-// pub fn board_state(handle: tauri::AppHandle, board: Vec<bool>) {
-//     // let board = [true, false, false, true, false, false, false, false, false];
-//     handle.emit_all("board-state", board).unwrap();
-// }
-
-// pub fn joystick_direction(handle: tauri::AppHandle) {
-//     let direction = JoystickDirections::Right as u32;
-//     handle.emit_all("joystick_direction", direction).unwrap();
-// }
-
-// pub fn joystick_fire(handle: tauri::AppHandle, fire: Option<bool>) {
-//     if fire.unwrap_or(false) {
-//         handle.emit_all("joystick_fire", {}).unwrap();
-//     }
-// }
 
 fn try_place_ship(
     ship: &usize,
