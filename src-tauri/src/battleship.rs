@@ -41,7 +41,8 @@ pub async fn run_game(
 ) -> Result<bool, ()> {
     let rows = rows_state.0.lock().unwrap().unwrap().clone();
     let cols = cols_state.0.lock().unwrap().unwrap().clone();
-    if port.0.lock().unwrap().is_some() || true {
+    // let guard = port.0.unwrap().lock().unwrap();
+    if true {
         let mut total_ships = 0;
         for ship in &ship_sizes {
             total_ships += ship;
@@ -144,22 +145,26 @@ pub async fn run_game(
         // Place own ships
         loop {
             // Get ship positions from arduino
-            (&mut my_board).ships[0] = true;
-            (&mut my_board).ships[1] = true;
-            (&mut my_board).ships[5] = true;
-            (&mut my_board).ships[8] = true;
-
+            // (&mut my_board).ships[0] = true;
+            // (&mut my_board).ships[1] = true;
+            // (&mut my_board).ships[5] = true;
+            // (&mut my_board).ships[8] = true;
+            let ships = port.arduino_get_board().unwrap();
+            my_board.ships = ships;
+            // let mut guard = (port.0.lock().unwrap());
+            // port.0.unwrap().lock().unwrap().arduino_get_board();
+            // serialport_manager::arduino_get_board(&mut port.clone().0.lock().unwrap().as_ref().unwrap());
             // Send positions to frontend
             handle
                 .emit_all("board-state", (&my_board).ships.clone())
                 .unwrap();
 
             // Check if game should start (change to listen for arduino fire)
-            if rx.try_recv().is_ok() || true {
+            if rx.try_recv().is_ok() {
                 // setup_handle.unlisten(event_handler);
                 break;
             }
-            thread::sleep(Duration::from_nanos(1));
+            thread::sleep(Duration::from_millis(1));
         }
         handle
             .emit_all("board-state", (&my_board).ships.clone())

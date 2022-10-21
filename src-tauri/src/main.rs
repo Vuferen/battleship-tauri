@@ -5,7 +5,7 @@
 use battleship::{Cols, CursorPos, Rows};
 use rand::Rng;
 use serialport_manager::Port;
-use std::sync::{mpsc, Mutex};
+use std::{sync::{mpsc, Mutex}, default::{self}};
 use tauri::Manager;
 
 pub mod battleship;
@@ -13,7 +13,7 @@ pub mod serialport_manager;
 
 fn main() {
     tauri::Builder::default()
-        .manage(Port(Mutex::new(None)))
+        .manage(Port{name: Mutex::new("".into()), baudrate: Mutex::new(0)})
         .manage(CursorPos(Mutex::new(None)))
         .manage(Cols(Mutex::new(None)))
         .manage(Rows(Mutex::new(None)))
