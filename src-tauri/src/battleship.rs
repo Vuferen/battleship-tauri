@@ -1,6 +1,5 @@
 use rand::Rng;
 use serde::Deserialize;
-use serialport_manager::Port;
 use std::{
     sync::{mpsc, Mutex},
     thread,
@@ -8,7 +7,7 @@ use std::{
 };
 use tauri::Manager;
 
-use crate::serialport_manager;
+use crate::serialport_manager::{SerialDriver};
 pub struct CursorPos(pub Mutex<Option<usize>>);
 #[tauri::command]
 pub fn set_cursor_pos(cursor_pos: tauri::State<'_, CursorPos>, new_pos: usize) {
@@ -33,7 +32,7 @@ struct Board {
 #[tauri::command]
 pub async fn run_game(
     handle: tauri::AppHandle,
-    port: tauri::State<'_, Port>,
+    port: tauri::State<'_, SerialDriver>,
     cursor_pos_state: tauri::State<'_, CursorPos>,
     rows_state: tauri::State<'_, Rows>,
     cols_state: tauri::State<'_, Cols>,
@@ -42,6 +41,7 @@ pub async fn run_game(
     let rows = rows_state.0.lock().unwrap().unwrap().clone();
     let cols = cols_state.0.lock().unwrap().unwrap().clone();
     // let guard = port.0.unwrap().lock().unwrap();
+    port.run_port();
     if true {
         let mut total_ships = 0;
         for ship in &ship_sizes {
@@ -144,38 +144,41 @@ pub async fn run_game(
         // thread::spawn(move || {
         // Place own ships
         loop {
+            let mut fire = false;
             // Get ship positions from arduino
-            // (&mut my_board).ships[0] = true;
-            // (&mut my_board).ships[1] = true;
-            // (&mut my_board).ships[5] = true;
-            // (&mut my_board).ships[8] = true;
-            let ships = port.arduino_get_board().unwrap();
-            my_board.ships = ships;
-            // let mut guard = (port.0.lock().unwrap());
-            // port.0.unwrap().lock().unwrap().arduino_get_board();
-            // serialport_manager::arduino_get_board(&mut port.clone().0.lock().unwrap().as_ref().unwrap());
+            match port.arduino_get_board().unwrap() {
+                Some(ships) => my_board.ships = ships,
+                None => fire = true,
+            };
             // Send positions to frontend
             handle
                 .emit_all("board-state", (&my_board).ships.clone())
                 .unwrap();
 
             // Check if game should start (change to listen for arduino fire)
-            if rx.try_recv().is_ok() {
+            if fire || rx.try_recv().is_ok() {
                 // setup_handle.unlisten(event_handler);
                 break;
             }
-            thread::sleep(Duration::from_millis(1));
+            thread::sleep(Duration::from_millis(10));
         }
         handle
             .emit_all("board-state", (&my_board).ships.clone())
             .unwrap();
 
         loop {
+            let mut fire = false;
             // let cursor_pos = cursor_pos_state.0.lock().unwrap().unwrap();
             let cursor_pos_state_clone = cursor_pos_state.clone();
             let cursor_pos = cursor_pos_state_clone.0.lock().unwrap().unwrap();
+            
+            match port.arduino_get_joystick_direction().unwrap() {
+                Some(direction) => move_cursor_by_dir(handle.clone(), cursor_pos_state_clone, cols, rows, direction),
+                None => fire = true,
+            };
+            
             // Game has started, wait for fire command
-            if rx.try_recv().is_ok() && !((&mut their_board).hits[cursor_pos]) {
+            if (fire || rx.try_recv().is_ok()) && !((&mut their_board).hits[cursor_pos]) {
                 // Handle fire
                 // Change hit state
                 (&mut their_board).hits[cursor_pos] = true;
@@ -290,6 +293,50 @@ pub fn move_cursor(
         3 => JoystickDirections::Left,
         _ => return,
     };
+    match joystick_direction {
+        JoystickDirections::Up => {
+            if cursor_pos < cols {
+                change = (cols * (rows - 1)) as i32;
+            } else {
+                change = -(cols as i32);
+            }
+        }
+        JoystickDirections::Right => {
+            if (cursor_pos + 1) % cols != 0 {
+                change = 1;
+            } else {
+                change = -(cols as i32) + 1;
+            }
+        }
+        JoystickDirections::Down => {
+            if cursor_pos + cols > cols * rows - 1 {
+                change = -(cols as i32) * ((rows as i32) - 1)
+            } else {
+                change = cols as i32;
+            }
+        }
+        JoystickDirections::Left => {
+            if cursor_pos % cols != 0 {
+                change = -1;
+            } else {
+                change = cols as i32 - 1;
+            }
+        }
+    }
+    *cursor_pos_state.0.lock().unwrap() = Some((cursor_pos as i32 + change) as usize);
+    handle
+        .emit_all("update-cursor-pos", cursor_pos as i32 + change)
+        .unwrap();
+}
+
+fn move_cursor_by_dir(
+    handle: tauri::AppHandle,
+    cursor_pos_state: tauri::State<'_, CursorPos>,
+    cols: usize,
+    rows: usize,
+    joystick_direction: JoystickDirections) {
+    let cursor_pos = cursor_pos_state.0.lock().unwrap().unwrap();
+    let change: i32;
     match joystick_direction {
         JoystickDirections::Up => {
             if cursor_pos < cols {
