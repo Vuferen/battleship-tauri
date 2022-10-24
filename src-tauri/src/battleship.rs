@@ -146,10 +146,13 @@ pub async fn run_game(
         loop {
             let mut fire = false;
             // Get ship positions from arduino
-            match port.arduino_get_board().unwrap() {
-                Some(ships) => my_board.ships = ships,
-                None => fire = true,
-            };
+            let res = port.arduino_get_board();
+            if res.is_ok() {
+                match res.unwrap() {
+                    Some(ships) => my_board.ships = ships,
+                    None => fire = true,
+                };
+            }
             // Send positions to frontend
             handle
                 .emit_all("board-state", (&my_board).ships.clone())
