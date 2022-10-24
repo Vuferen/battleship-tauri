@@ -37,11 +37,15 @@ pub async fn run_game(
     rows_state: tauri::State<'_, Rows>,
     cols_state: tauri::State<'_, Cols>,
     ship_sizes: Vec<u8>,
+    is_first_game: bool,
 ) -> Result<bool, ()> {
     let rows = rows_state.0.lock().unwrap().unwrap().clone();
     let cols = cols_state.0.lock().unwrap().unwrap().clone();
     // let guard = port.0.unwrap().lock().unwrap();
-    port.run_port();
+    if is_first_game {
+        port.run_port();
+    }
+    
     if true {
         let mut total_ships = 0;
         for ship in &ship_sizes {

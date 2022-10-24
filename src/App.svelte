@@ -87,12 +87,13 @@
 		await invoke("set_cursor_pos", { newPos: cursorPosition });
 		await invoke("set_cols", { newCols: cols });
 		await invoke("set_rows", { newRows: rows });
+		runGame(true);
 	});
 
-	async function runGame() {
+	async function runGame(isFirstGame = false) {
 		createEmptyBoards();
 		gameState = GameState.Fire;
-		await invoke("run_game", { shipSizes: shipSizes }).then(() => (gameState = GameState.End));
+		await invoke("run_game", { shipSizes: shipSizes, isFirstGame: isFirstGame }).then(() => (gameState = GameState.End));
 	}
 
 	async function moveCursor(direction: JoystickDirections) {
