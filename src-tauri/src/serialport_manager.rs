@@ -47,8 +47,16 @@ impl SerialDriver{
             "2" => Ok(Some(JoystickDirections::Left)), // Left
             "3" => Ok(Some(JoystickDirections::Up)), // Up
             "4" => Ok(Some(JoystickDirections::Down)), // Down
+            "5" => Ok(Some(JoystickDirections::Stay)), // Stay
             err => Err(format!("Could not match direction: {}", err)),
         }
+    }
+
+    pub fn arduino_vibrate(& self) -> Result<String, String> {
+        match self.write("3\n") {
+            Ok(text) => return Ok(text),
+            Err(err) => return Err(format!("Could not write: {}", err)),
+        };
     }
 
     fn write(&self, text: &str) -> Result<String, String> {

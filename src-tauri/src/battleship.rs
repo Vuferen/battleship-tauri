@@ -172,10 +172,13 @@ pub async fn run_game(
             let cursor_pos_state_clone = cursor_pos_state.clone();
             let cursor_pos = cursor_pos_state_clone.0.lock().unwrap().unwrap();
             
-            match port.arduino_get_joystick_direction().unwrap() {
-                Some(direction) => move_cursor_by_dir(handle.clone(), cursor_pos_state_clone, cols, rows, direction),
-                None => fire = true,
-            };
+            let res = port.arduino_get_joystick_direction();
+            if res.is_ok() {
+                match res.unwrap() {
+                    Some(direction) => move_cursor_by_dir(handle.clone(), cursor_pos_state_clone, cols, rows, direction),
+                    None => fire = true,
+                };
+            }
             
             // Game has started, wait for fire command
             if (fire || rx.try_recv().is_ok()) && !((&mut their_board).hits[cursor_pos]) {
@@ -185,6 +188,7 @@ pub async fn run_game(
                 if their_board.ships[cursor_pos] {
                     // Enemy ship was hit
                     their_board.ships_left -= 1;
+                    port.arduino_vibrate().unwrap();
                     handle.emit_all("enemy-board-hit", cursor_pos).unwrap();
                 } else {
                     // Miss
@@ -258,7 +262,7 @@ pub async fn run_game(
                     break;
                 }
             }
-            thread::sleep(Duration::from_nanos(1));
+            thread::sleep(Duration::from_millis(10));
         }
         handle.unlisten(fire_event);
         // });
@@ -272,6 +276,7 @@ pub enum JoystickDirections {
     Right,
     Down,
     Left,
+    Stay,
 }
 
 #[tauri::command]
@@ -291,10 +296,11 @@ pub fn move_cursor(
         1 => JoystickDirections::Right,
         2 => JoystickDirections::Down,
         3 => JoystickDirections::Left,
+        4 => JoystickDirections::Stay,
         _ => return,
     };
     match joystick_direction {
-        JoystickDirections::Up => {
+        JoystickDirections::Down => {
             if cursor_pos < cols {
                 change = (cols * (rows - 1)) as i32;
             } else {
@@ -308,7 +314,7 @@ pub fn move_cursor(
                 change = -(cols as i32) + 1;
             }
         }
-        JoystickDirections::Down => {
+        JoystickDirections::Up => {
             if cursor_pos + cols > cols * rows - 1 {
                 change = -(cols as i32) * ((rows as i32) - 1)
             } else {
@@ -321,6 +327,9 @@ pub fn move_cursor(
             } else {
                 change = cols as i32 - 1;
             }
+        }
+        JoystickDirections::Stay => {
+            change = 0;
         }
     }
     *cursor_pos_state.0.lock().unwrap() = Some((cursor_pos as i32 + change) as usize);
@@ -338,7 +347,7 @@ fn move_cursor_by_dir(
     let cursor_pos = cursor_pos_state.0.lock().unwrap().unwrap();
     let change: i32;
     match joystick_direction {
-        JoystickDirections::Up => {
+        JoystickDirections::Down => {
             if cursor_pos < cols {
                 change = (cols * (rows - 1)) as i32;
             } else {
@@ -352,7 +361,7 @@ fn move_cursor_by_dir(
                 change = -(cols as i32) + 1;
             }
         }
-        JoystickDirections::Down => {
+        JoystickDirections::Up => {
             if cursor_pos + cols > cols * rows - 1 {
                 change = -(cols as i32) * ((rows as i32) - 1)
             } else {
@@ -365,6 +374,9 @@ fn move_cursor_by_dir(
             } else {
                 change = cols as i32 - 1;
             }
+        }
+        JoystickDirections::Stay => {
+            change = 0;
         }
     }
     *cursor_pos_state.0.lock().unwrap() = Some((cursor_pos as i32 + change) as usize);
