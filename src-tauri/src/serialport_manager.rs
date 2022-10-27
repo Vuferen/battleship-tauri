@@ -60,6 +60,20 @@ impl SerialDriver{
         };
     }
 
+    pub fn arduino_set_led(& self, led: usize) -> Result<String, String> {
+        match self.write(format!("4{}\n",led).as_str()) {
+            Ok(text) => return Ok(text),
+            Err(err) => return Err(format!("Could not write: {}", err)),
+        };
+    }
+
+    pub fn arduino_reset_leds(& self) -> Result<String, String> {
+        match self.write("5\n") {
+            Ok(text) => return Ok(text),
+            Err(err) => return Err(format!("Could not write: {}", err)),
+        };
+    }
+
     fn write(&self, text: &str) -> Result<String, String> {
         (self.writer_send.lock().unwrap().as_ref().unwrap()).send(text.to_string()).unwrap();
         let res = (self.buffer_recv.lock().unwrap().as_ref().unwrap()).recv();
@@ -101,7 +115,7 @@ impl SerialDriver{
                         let now = Instant::now();
                         loop {
                             let res = reader.read_line(&mut input);
-                            if res.is_ok() || now.elapsed() > Duration::from_millis(50) {
+                            if res.is_ok() || now.elapsed() > Duration::from_millis(100) {
                                 break;
                             } 
                             // Add timeout here

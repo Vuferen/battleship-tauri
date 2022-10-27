@@ -238,6 +238,8 @@ pub async fn run_game(
                             has_fired = true;
                             handle.emit_all("my-board-hit", target.unwrap()).unwrap();
                             if my_board.ships[target.unwrap()] {
+                                port.arduino_vibrate().unwrap();
+                                port.arduino_set_led(target.unwrap());
                                 (&mut my_board).ships_left -= 1;
                             }
                         }
@@ -252,6 +254,8 @@ pub async fn run_game(
                         has_fired = true;
                         handle.emit_all("my-board-hit", pos).unwrap();
                         if my_board.ships[pos] {
+                            port.arduino_vibrate().unwrap();
+                            port.arduino_set_led(pos);
                             (&mut my_board).ships_left -= 1;
                         }
                     }
@@ -271,6 +275,7 @@ pub async fn run_game(
             }
             thread::sleep(Duration::from_millis(10));
         }
+        port.arduino_reset_leds().unwrap();
         handle.unlisten(fire_event);
         // });
     }
