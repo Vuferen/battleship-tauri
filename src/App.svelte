@@ -193,6 +193,7 @@
 						sections={cols}
 						radius={((0.5 * boardSize) / rows) * (1 + Math.floor(i / cols))}
 						n={i % cols}
+						letter={(Math.floor(i / cols))}
 						gap={boardGap}
 						center={boardSize / 2}
 						selected={cursorPosition == i}
