@@ -1,5 +1,6 @@
 use std::io::{BufReader, BufRead};
 use std::sync::mpsc::{self, Sender, Receiver};
+use std::time::Instant;
 use std::{sync::Mutex, time::Duration};
 use std::{str, thread};
 use serde::{Serialize, Deserialize};
@@ -97,11 +98,13 @@ impl SerialDriver{
                         the_port.write(output).unwrap();
                         let mut reader = BufReader::new(the_port);
                         let mut input = String::new();
+                        let now = Instant::now();
                         loop {
                             let res = reader.read_line(&mut input);
-                            if res.is_ok() {
+                            if res.is_ok() || now.elapsed() > Duration::from_millis(50) {
                                 break;
                             } 
+                            // Add timeout here
                         }
                         buffer.send(input).unwrap();
                     }   
