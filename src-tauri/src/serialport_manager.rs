@@ -4,7 +4,7 @@ use std::time::Instant;
 use std::{sync::Mutex, time::Duration};
 use std::{str, thread};
 use serde::{Serialize, Deserialize};
-use serialport::SerialPort;
+use serialport::{SerialPort, FlowControl};
 
 use crate::battleship::JoystickDirections;
 
@@ -105,6 +105,7 @@ impl SerialDriver{
 
                 if port.is_some() {
                     let mut the_port = port.unwrap();
+                    the_port.set_flow_control(FlowControl::Hardware).unwrap();
                     let res = writer.try_recv();
                     
                     if res.as_ref().is_ok() {
@@ -115,7 +116,7 @@ impl SerialDriver{
                         let now = Instant::now();
                         loop {
                             let res = reader.read_line(&mut input);
-                            if res.is_ok() || now.elapsed() > Duration::from_millis(100) {
+                            if res.is_ok() || now.elapsed() > Duration::from_millis(250) {
                                 break;
                             } 
                             // Add timeout here

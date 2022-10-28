@@ -218,6 +218,7 @@
 </main>
 
 <style>
+
 	.game {
 		display: grid;
 		grid-auto-flow: column;

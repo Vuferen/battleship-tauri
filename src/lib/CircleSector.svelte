@@ -20,7 +20,7 @@
 	let y = (Math.cos(angle) * (gap * sections)) / 5;
 
 	function getColor(select, color) {
-		return selected ? "#000" : color;
+		return selected ? "#fff" : color;
 	}
 
 	function getLetter(n) {
@@ -71,14 +71,14 @@
 				stroke-width={width}
 				stroke-dasharray="{circumference / sections}, {circumference}"
 				/>
-				<!-- <text width="{size}">
+				<text width="{size}">
 					<textPath xlink:href="#curve" startOffset="50%" text-anchor="middle">
-						A1
+						{getLetter(letter)}{n+1}
 					</textPath>
-				</text> -->
+				</text>
 			</svg>
 		</div>
-		<p class=" z-20 absolute">{getLetter(letter)}{n+1}</p>
+		<!-- <p class=" z-20 absolute">{getLetter(letter)}{n+1}</p> -->
 </div>
 {#if selected}
 	<div

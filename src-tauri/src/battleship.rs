@@ -3,7 +3,7 @@ use serde::Deserialize;
 use std::{
     sync::{mpsc, Mutex},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tauri::Manager;
 
@@ -172,21 +172,26 @@ pub async fn run_game(
         handle
             .emit_all("board-state", (&my_board).ships.clone())
             .unwrap();
-
+        
+        let mut now = Instant::now();
         loop {
             let mut fire = false;
             // let cursor_pos = cursor_pos_state.0.lock().unwrap().unwrap();
             let cursor_pos_state_clone = cursor_pos_state.clone();
             let cursor_pos = cursor_pos_state_clone.0.lock().unwrap().unwrap();
-            
             let res = port.arduino_get_joystick_direction();
+
             if res.is_ok() {
                 match res.unwrap() {
-                    Some(direction) => move_cursor_by_dir(handle.clone(), cursor_pos_state_clone, cols, rows, direction),
+                    Some(direction) => {
+                        if now.elapsed() > Duration::from_millis(200) {
+                            now = Instant::now();
+                            move_cursor_by_dir(handle.clone(), cursor_pos_state_clone, cols, rows, direction);
+                        }
+                    },
                     None => fire = true,
                 };
             }
-            
             // Game has started, wait for fire command
             if (fire || rx.try_recv().is_ok()) && !((&mut their_board).hits[cursor_pos]) {
                 // Handle fire
@@ -273,7 +278,6 @@ pub async fn run_game(
                     break;
                 }
             }
-            thread::sleep(Duration::from_millis(10));
         }
         port.arduino_reset_leds().unwrap();
         handle.unlisten(fire_event);
