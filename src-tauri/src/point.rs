@@ -8,7 +8,7 @@ impl Vector2 {
 		return (x.pow(2) + y.pow(2)).sqrt();
 	}
 	fn angle() {
-		(y/x).atan() + PI*0.5;
+		return (y/x).atan() + PI*0.5;
 	}
 	pub fn col(self, cols: usize) -> usize {
 		return 1-self.length();
