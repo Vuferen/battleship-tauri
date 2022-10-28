@@ -25,6 +25,11 @@
 		hit: boolean;
 	}
 
+	interface Cursor {
+		x: number;
+		y: number;
+	}
+
 	let gameState = GameState.Setup;
 	let rows = 3;
 	let cols = 3;
@@ -38,6 +43,7 @@
 	let endMessage = "";
 	let boardSize = 256;
 	let boardGap = 5;
+	let cursor = {x: 0, y: 0};
 
 	createEmptyBoards();
 
@@ -82,6 +88,10 @@
 		});
 		await listen<number>("update-cursor-pos", (event) => {
 			cursorPosition = event.payload;
+		});
+		await listen<Cursor>("update-2d-cursor-pos", (event) => {
+			console.log(event.payload);
+			cursor = event.payload;
 		});
 
 		await invoke("set_cursor_pos", { newPos: cursorPosition });
@@ -186,9 +196,10 @@
 				</div>
 			{/if}
 			<div style="transform: translate({0}px, {0}px); width: {boardSize}px; height: {boardSize}px;" class=" relative">
+				<div style="top: {boardSize-(cursor.y+1)*0.5*boardSize}px; left: {(cursor.x+1)*0.5*boardSize}px;" class="cursor z-20"></div>
 				{#each theirBoard as cell, i}
 					<CircleSector
-						width={(0.5 * boardSize) / rows}
+						width={(0.5 * boardSize) / rows - boardGap}
 						color={getCellColor(cell)}
 						sections={cols}
 						radius={((0.5 * boardSize) / rows) * (1 + Math.floor(i / cols))}
@@ -235,5 +246,13 @@
 	}
 	.their .hit-cell {
 		background-color: rgb(63, 65, 68);
+	}
+	.cursor {
+		position: absolute;
+		background-color: white;
+		width: 10px;
+		height: 10px;
+		border-radius: 100%;
+		transform: translate(-5px, -5px);
 	}
 </style>

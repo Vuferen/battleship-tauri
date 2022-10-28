@@ -8,6 +8,7 @@ use std::{sync::{Mutex}};
 
 pub mod battleship;
 pub mod serialport_manager;
+pub mod vector2;
 
 fn main() {
     tauri::Builder::default()

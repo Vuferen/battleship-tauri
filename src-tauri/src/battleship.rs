@@ -3,9 +3,11 @@ use serde::Deserialize;
 use std::{
     sync::{mpsc, Mutex},
     thread,
-    time::{Duration, Instant},
+    time::{Duration, Instant}, cmp::max,
 };
 use tauri::Manager;
+
+use crate::vector2::*;
 
 use crate::serialport_manager::{SerialDriver};
 pub struct CursorPos(pub Mutex<Option<usize>>);
@@ -174,6 +176,7 @@ pub async fn run_game(
             .unwrap();
         
         let mut now = Instant::now();
+        let mut cursor = Vector2{x: 0.0, y: 0.0};
         loop {
             let mut fire = false;
             // let cursor_pos = cursor_pos_state.0.lock().unwrap().unwrap();
@@ -184,9 +187,9 @@ pub async fn run_game(
             if res.is_ok() {
                 match res.unwrap() {
                     Some(direction) => {
-                        if now.elapsed() > Duration::from_millis(200) {
+                        if now.elapsed() > Duration::from_millis(10) {
                             now = Instant::now();
-                            move_cursor_by_dir(handle.clone(), cursor_pos_state_clone, cols, rows, direction);
+                            move_cursor_by_dir(handle.clone(), cursor_pos_state_clone, &mut cursor, cols, rows, direction);
                         }
                     },
                     None => fire = true,
@@ -354,52 +357,87 @@ pub fn move_cursor(
         .unwrap();
 }
 
+
 fn move_cursor_by_dir(
     handle: tauri::AppHandle,
     cursor_pos_state: tauri::State<'_, CursorPos>,
+    cursor: &mut Vector2,
     cols: usize,
     rows: usize,
     joystick_direction: JoystickDirections) {
     let cursor_pos = cursor_pos_state.0.lock().unwrap().unwrap();
-    let change: i32;
+    // let change: i32;
     match joystick_direction {
         JoystickDirections::Down => {
-            if cursor_pos < cols {
-                change = (cols * (rows - 1)) as i32;
-            } else {
-                change = -(cols as i32);
-            }
+            cursor.y = (cursor.y - 0.01).max(-0.99);
         }
         JoystickDirections::Right => {
-            if (cursor_pos + 1) % cols != 0 {
-                change = 1;
-            } else {
-                change = -(cols as i32) + 1;
-            }
+            cursor.x = (cursor.x + 0.01).min(0.99);
         }
         JoystickDirections::Up => {
-            if cursor_pos + cols > cols * rows - 1 {
-                change = -(cols as i32) * ((rows as i32) - 1)
-            } else {
-                change = cols as i32;
-            }
+            cursor.y = (cursor.y + 0.01).min(0.99);
         }
         JoystickDirections::Left => {
-            if cursor_pos % cols != 0 {
-                change = -1;
-            } else {
-                change = cols as i32 - 1;
-            }
+            cursor.x = (cursor.x - 0.01).max(-0.99);
         }
         JoystickDirections::Stay => {
-            change = 0;
+            // change = 0;
         }
     }
-    *cursor_pos_state.0.lock().unwrap() = Some((cursor_pos as i32 + change) as usize);
+    *cursor_pos_state.0.lock().unwrap() = Some(cursor.selected(rows, cols));
     handle
-        .emit_all("update-cursor-pos", cursor_pos as i32 + change)
+        .emit_all("update-2d-cursor-pos", *cursor)
         .unwrap();
 }
+
+
+
+// fn move_cursor_by_dir(
+//     handle: tauri::AppHandle,
+//     cursor_pos_state: tauri::State<'_, CursorPos>,
+//     cols: usize,
+//     rows: usize,
+//     joystick_direction: JoystickDirections) {
+//     let cursor_pos = cursor_pos_state.0.lock().unwrap().unwrap();
+//     let change: i32;
+//     match joystick_direction {
+//         JoystickDirections::Down => {
+//             if cursor_pos < cols {
+//                 change = (cols * (rows - 1)) as i32;
+//             } else {
+//                 change = -(cols as i32);
+//             }
+//         }
+//         JoystickDirections::Right => {
+//             if (cursor_pos + 1) % cols != 0 {
+//                 change = 1;
+//             } else {
+//                 change = -(cols as i32) + 1;
+//             }
+//         }
+//         JoystickDirections::Up => {
+//             if cursor_pos + cols > cols * rows - 1 {
+//                 change = -(cols as i32) * ((rows as i32) - 1)
+//             } else {
+//                 change = cols as i32;
+//             }
+//         }
+//         JoystickDirections::Left => {
+//             if cursor_pos % cols != 0 {
+//                 change = -1;
+//             } else {
+//                 change = cols as i32 - 1;
+//             }
+//         }
+//         JoystickDirections::Stay => {
+//             change = 0;
+//         }
+//     }
+//     *cursor_pos_state.0.lock().unwrap() = Some((cursor_pos as i32 + change) as usize);
+//     handle
+//         .emit_all("update-cursor-pos", cursor_pos as i32 + change)
+//         .unwrap();
+// }
 
 fn try_place_ship(
     ship: &usize,
