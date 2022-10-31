@@ -388,6 +388,9 @@ fn move_cursor_by_dir(
     handle
         .emit_all("update-2d-cursor-pos", *cursor)
         .unwrap();
+    handle
+        .emit_all("update-cursor-pos", cursor.selected(rows, cols))
+        .unwrap();
 }
 
 

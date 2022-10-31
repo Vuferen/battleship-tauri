@@ -52,9 +52,9 @@
 	}
 
 </script>
-
+<!-- -newRadius + center / 2 + gap*sections*2-gap -->
 <div
-	style="width: {size}px; height: {size}px; top: {-newRadius + center / 2 + gap*sections*2-gap}px; left: {-newRadius + center / 2 + gap*sections*2-gap}px; transform: rotate({(360 /
+	style="width: {size}px; height: {size}px; top: {-size*0.5+center}px; left: {-size*0.5+center}px; transform: rotate({(360 /
 		sections) *
 		n +
 		angle}deg) translate({x}px, {-y}px);"
@@ -68,7 +68,7 @@
 				a {newRadius} {newRadius} 0 0 1 0 {newRadius * 2}
 				a {newRadius} {newRadius} 0 0 1 0 -{newRadius * 2}"
 				fill="none"
-				stroke={color}
+				stroke={getColor(selected, color)}
 				stroke-width={width}
 				stroke-dasharray="{circumference / sections}, {circumference}"
 				/>
@@ -81,9 +81,9 @@
 		</div>
 		<!-- <p class=" z-20 absolute">{getLetter(letter)}{n+1}</p> -->
 </div>
-<!-- {#if selected}
+{#if selected}
 	<div
-		style="width: {size}px; height: {size}px; top: {-newRadius + center / 2}px; left: {-newRadius + center / 2}px; transform: rotate({(360 /
+		style="width: {size}px; height: {size}px; top: {-size*0.5+center}px; left: {-size*0.5+center}px; transform: rotate({(360 /
 			sections) *
 			n +
 			angle}deg) translate({x}px, {-y}px);"
@@ -101,7 +101,7 @@
 			/>
 		</svg>
 	</div>
-{/if} -->
+{/if}
 
 <style>
 </style>

@@ -37,11 +37,11 @@
 	let theirBoard: Cell[] = [];
 	let cursorPosition = 0;
 	let showDebug = false;
-	let showMyBoard = true;
+	let showMyBoard = false;
 	let showDirectionButtons = false;
 	let shipSizes = [2, 2];
 	let endMessage = "";
-	let boardSize = 256;
+	let boardSize = 700;
 	let boardGap = 5;
 	let cursor = {x: 0, y: 0};
 
