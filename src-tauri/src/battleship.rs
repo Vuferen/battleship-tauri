@@ -155,7 +155,11 @@ pub async fn run_game(
             let res = port.arduino_get_board();
             if res.is_ok() {
                 match res.unwrap() {
-                    Some(ships) => my_board.ships = ships,
+                    Some(ships) => {
+                        for (i, _) in ships.iter().enumerate() {
+                            my_board.ships[i] = ships[i];
+                        }
+                    }
                     None => fire = true,
                 };
             }

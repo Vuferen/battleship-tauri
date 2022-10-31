@@ -4,6 +4,7 @@
 	import { onMount } from "svelte";
 	import PickPort from "./lib/PickPort.svelte";
 	import CircleSector from "./lib/CircleSector.svelte";
+	import RadarAnimation from "./lib/RadarAnimation.svelte";
 	// import { emit } from "@tauri-apps/api/helpers/event";
 
 	enum JoystickDirections {
@@ -31,17 +32,17 @@
 	}
 
 	let gameState = GameState.Setup;
-	let rows = 3;
-	let cols = 3;
+	let rows = 10;
+	let cols = 10;
 	let myBoard = [];
 	let theirBoard: Cell[] = [];
 	let cursorPosition = 0;
 	let showDebug = false;
 	let showMyBoard = false;
 	let showDirectionButtons = false;
-	let shipSizes = [2, 2];
+	let shipSizes = [2,3,3,4,5];
 	let endMessage = "";
-	let boardSize = 700;
+	let boardSize = 800;
 	let boardGap = 5;
 	let cursor = {x: 0, y: 0};
 
@@ -131,12 +132,17 @@
 	}
 
 	function getCellColor(cell) {
-		return cell.ship && cell.hit ? "#dc143c" : cell.hit ? "rgb(63, 65, 68)" : "rgb(100 116 139)";
+		return cell.ship && cell.hit ? "#dc143c" : cell.hit ? "blue" : "black";
 	}
+
+	function getHoverColor(cell) {
+		return cell.ship && cell.hit ? "#9a0e2a" : cell.hit ? "blue" : "#465161";
+	}
+
 </script>
 
 <main>
-	<div class=" fixed top-10 left-10 flex flex-col text-left">
+	<div class=" fixed top-10 left-10 flex flex-col text-left z-[100]">
 		<PickPort />
 
 		<label class="mt-2 w-fit">
@@ -150,6 +156,10 @@
 		<label class="w-fit">
 			Show direction buttons
 			<input type="checkbox" name="debugInfo" bind:checked={showDirectionButtons} class=" w-4 h-4 ml-2" />
+		</label>
+		<label class="w-fit">
+			Size
+			<input type="range" name="" id="" min="400" max="1000" bind:value={boardSize}>
 		</label>
 		<!-- <label class="w-fit mt-2 mb-2">
 			<button on:click={confirmShips}>Confirm ship positions</button>
@@ -195,12 +205,15 @@
 					{/each}
 				</div>
 			{/if}
-			<div style="transform: translate({0}px, {0}px); width: {boardSize}px; height: {boardSize}px;" class=" relative">
-				<div style="top: {boardSize-(cursor.y+1)*0.5*boardSize}px; left: {(cursor.x+1)*0.5*boardSize}px;" class="cursor z-20"></div>
+			<div style="transform: translate({0}px, {0}px); width: {boardSize}px; height: {boardSize}px;" class=" relative radar">
+				
+				
+				<div class="z-10">
 				{#each theirBoard as cell, i}
 					<CircleSector
 						width={(0.5 * boardSize) / rows - boardGap}
 						color={getCellColor(cell)}
+						hoverColor={getHoverColor(cell)}
 						sections={cols}
 						radius={((0.5 * boardSize) / rows) * (1 + Math.floor(i / cols))}
 						n={i % cols}
@@ -210,6 +223,9 @@
 						selected={cursorPosition == i}
 					/>
 				{/each}
+				</div>
+				<div class="z-20"><RadarAnimation size={boardSize} /></div>
+				<div style="top: {boardSize-(cursor.y+1)*0.5*boardSize}px; left: {(cursor.x+1)*0.5*boardSize}px;" class="cursor z-50"></div>
 			</div>
 			<!-- <div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board their grid gap-2">
 				{#each theirBoard as cell, i}
@@ -254,5 +270,11 @@
 		height: 10px;
 		border-radius: 100%;
 		transform: translate(-5px, -5px);
+	}
+	.radar{
+		background-color: #05FB11;
+		border-radius: 50%;
+		border: 5px solid #05FB11;
+		box-sizing: content-box;
 	}
 </style>
