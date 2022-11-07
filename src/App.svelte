@@ -136,7 +136,7 @@
 	}
 
 	function getHoverColor(cell) {
-		return cell.ship && cell.hit ? "#9a0e2a" : cell.hit ? "blue" : "#465161";
+		return cell.ship && cell.hit ? "#9a0e2a" : cell.hit ? "blue" : "#05FB11";	
 	}
 
 </script>
@@ -160,6 +160,7 @@
 		<label class="w-fit">
 			Size
 			<input type="range" name="" id="" min="400" max="1000" bind:value={boardSize}>
+			{boardSize}
 		</label>
 		<!-- <label class="w-fit mt-2 mb-2">
 			<button on:click={confirmShips}>Confirm ship positions</button>

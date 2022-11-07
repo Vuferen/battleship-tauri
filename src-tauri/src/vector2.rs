@@ -8,7 +8,7 @@ pub struct Vector2 {
 
 impl Vector2 {
 	fn length(self) -> f32 {
-		return ((self.x.powf(2.0) + self.y.powf(2.0)).sqrt()).min(0.99);
+		return ((self.x.powf(2.0) + self.y.powf(2.0)).sqrt());
 	}
 	fn angle(self) -> f32 {
 		if self.x == 0.0 && self.y == 0.0 {
@@ -29,5 +29,13 @@ impl Vector2 {
 	}
 	pub fn selected(self, rows:usize, cols:usize) -> usize {
 		return self.col(cols) + self.row(rows) * cols;
+	}
+	pub fn normalize(mut self) -> Vector2{
+		if self.x != 0.0 && self.y != 0.0 {
+			let len = self.length();
+			self.x = self.x / len;
+			self.y = self.y / len;
+		}
+		return self;
 	}
 }

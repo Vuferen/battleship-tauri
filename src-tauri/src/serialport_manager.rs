@@ -8,6 +8,22 @@ use serialport::{SerialPort, FlowControl};
 
 use crate::battleship::JoystickDirections;
 
+
+pub struct JoystickDirection {
+    pub x: i32,
+    pub y: i32,
+}
+
+
+pub enum InputTag { Reset, Board, Fire, Joystick, End, Turn }
+
+
+pub struct Input {
+    pub tag: InputTag,
+    pub ships: Vec<bool>,
+    pub joystick_direction: JoystickDirection,
+}
+
 pub struct SerialDriver{
     pub port: Mutex<String>,
     pub baudrate: Mutex<u32>,
@@ -16,6 +32,14 @@ pub struct SerialDriver{
 }
 
 impl SerialDriver{
+    pub fn arduino_reset(& self) -> Result<String, String> {
+        match self.write("0\n") {
+            Ok(text) => return Ok(text),
+            Err(err) => return Err(format!("Could not write: {}", err)),
+        };
+    }
+
+    // Depricated, should now send board instead
     pub fn arduino_get_board(&self) -> Result<Option<Vec<bool>>, String> {
         let input;
         match self.write("1\n") {
@@ -35,44 +59,78 @@ impl SerialDriver{
         return Ok(Some(parsed.board));
     }
 
-    pub fn arduino_get_joystick_direction(& self) -> Result<Option<JoystickDirections>, String> {
+    pub fn arduino_get_joystick_direction(& self) -> Result<Option<JoystickDirection>, String> {
         let input;
         match self.write("2\n") {
             Ok(text) => input = text,
             Err(err) => return Err(format!("Could not write: {}", err)),
         };
-
-        match input.as_str().trim() {
-            "0" => Ok(None), // Fire
-            "1" => Ok(Some(JoystickDirections::Right)), // Right
-            "2" => Ok(Some(JoystickDirections::Left)), // Left
-            "3" => Ok(Some(JoystickDirections::Up)), // Up
-            "4" => Ok(Some(JoystickDirections::Down)), // Down
-            "5" => Ok(Some(JoystickDirections::Stay)), // Stay
+        // println!("{}", input);
+        if input.len() == 0 {
+            return Err("No response from arduino".to_string());
+        }
+        let first_char = input.as_bytes()[0];
+        match first_char {
+            b'2' => Ok(None),
+            b'3' => {
+                let trimmed_input: &str = &input[1..input.len()].trim();
+                let vec = trimmed_input.split(',').filter_map(|s| s.parse::<i32>().ok()).collect::<Vec<_>>(); // <- this does not work
+                Ok(Some(JoystickDirection{x: vec[0], y: vec[1]}))},
             err => Err(format!("Could not match direction: {}", err)),
+        }
+
+        // match input.as_str().trim() {
+        //     "0" => Ok(None), // Fire
+        //     "1" => Ok(Some(JoystickDirections::Right)), // Right
+        //     "2" => Ok(Some(JoystickDirections::Left)), // Left
+        //     "3" => Ok(Some(JoystickDirections::Up)), // Up
+        //     "4" => Ok(Some(JoystickDirections::Down)), // Down
+        //     "5" => Ok(Some(JoystickDirections::Stay)), // Stay
+        //     err => Err(format!("Could not match direction: {}", err)),
+        // }
+    }
+
+    pub fn arduino_miss(& self) -> Result<String, String> {
+        match self.write("4\n") {
+            Ok(text) => return Ok(text),
+            Err(err) => return Err(format!("Could not write: {}", err)),
+        };
+    }
+
+    pub fn arduino_hit(& self, cell: usize) -> Result<String, String> {
+        match self.write(format!("3{}\n",cell).as_str()) {
+            Ok(text) => return Ok(text),
+            Err(err) => return Err(format!("Could not write: {}", err)),
+        };
+    }
+
+
+    fn handle_response(input: String) -> Result<Input, String> {
+        let first_char = input.as_bytes()[0];
+        match first_char {
+            b'0' => Ok(Input{tag: InputTag::Reset, ships: vec![false; 0], joystick_direction: JoystickDirection{x: 0, y: 0}}), // Reset
+            b'1' => {
+                let trimmed_input: &str = &input[1..input.len()];
+                let parsed: Board = match serde_json::from_str(&trimmed_input) {
+                    Ok(res) => res,
+                    Err(err) => return Err(format!("Could not parse json: {}", err)),
+                };
+                
+                Ok(Input{tag: InputTag::Board, ships: parsed.board, joystick_direction: JoystickDirection{x: 0, y: 0}})
+            }, // Board
+            b'2' => Ok(Input{tag: InputTag::Fire, ships: vec![false; 0], joystick_direction: JoystickDirection{x: 0, y: 0}}), // Fire
+            b'3' => {
+                let trimmed_input: &str = &input[1..input.len()];
+                let vec = trimmed_input.split(",").filter_map(|s| s.parse::<i32>().ok()).collect::<Vec<_>>();
+                
+                Ok(Input{tag: InputTag::Joystick, ships: vec![false; 0], joystick_direction: JoystickDirection{x: vec[0], y: vec[1]}})
+            }, // JS Dir
+            b'4' => Ok(Input{tag: InputTag::End, ships: vec![false; 0], joystick_direction: JoystickDirection{x: 0, y: 0}}), // Defeat
+            b'5' => Ok(Input{tag: InputTag::Turn, ships: vec![false; 0], joystick_direction: JoystickDirection{x: 0, y: 0}}), // Your turn
+            err => Err(format!("Could not handle response: {}", err)),
         }
     }
 
-    pub fn arduino_vibrate(& self) -> Result<String, String> {
-        match self.write("3\n") {
-            Ok(text) => return Ok(text),
-            Err(err) => return Err(format!("Could not write: {}", err)),
-        };
-    }
-
-    pub fn arduino_set_led(& self, led: usize) -> Result<String, String> {
-        match self.write(format!("4{}\n",led).as_str()) {
-            Ok(text) => return Ok(text),
-            Err(err) => return Err(format!("Could not write: {}", err)),
-        };
-    }
-
-    pub fn arduino_reset_leds(& self) -> Result<String, String> {
-        match self.write("5\n") {
-            Ok(text) => return Ok(text),
-            Err(err) => return Err(format!("Could not write: {}", err)),
-        };
-    }
 
     fn write(&self, text: &str) -> Result<String, String> {
         (self.writer_send.lock().unwrap().as_ref().unwrap()).send(text.to_string()).unwrap();

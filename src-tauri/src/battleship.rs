@@ -9,7 +9,7 @@ use tauri::Manager;
 
 use crate::vector2::*;
 
-use crate::serialport_manager::{SerialDriver};
+use crate::serialport_manager::{SerialDriver, JoystickDirection};
 pub struct CursorPos(pub Mutex<Option<usize>>);
 #[tauri::command]
 pub fn set_cursor_pos(cursor_pos: tauri::State<'_, CursorPos>, new_pos: usize) {
@@ -150,6 +150,7 @@ pub async fn run_game(
         // thread::spawn(move || {
         // Place own ships
         loop {
+            break;
             let mut fire = false;
             // Get ship positions from arduino
             let res = port.arduino_get_board();
@@ -207,10 +208,11 @@ pub async fn run_game(
                 if their_board.ships[cursor_pos] {
                     // Enemy ship was hit
                     their_board.ships_left -= 1;
-                    port.arduino_vibrate().unwrap();
+                    port.arduino_hit(cursor_pos);
                     handle.emit_all("enemy-board-hit", cursor_pos).unwrap();
                 } else {
                     // Miss
+                    port.arduino_miss();
                     handle.emit_all("enemy-board-miss", cursor_pos).unwrap();
                 }
 
@@ -250,8 +252,8 @@ pub async fn run_game(
                             has_fired = true;
                             handle.emit_all("my-board-hit", target.unwrap()).unwrap();
                             if my_board.ships[target.unwrap()] {
-                                port.arduino_vibrate().unwrap();
-                                port.arduino_set_led(target.unwrap());
+                                // port.arduino_vibrate().unwrap();
+                                // port.arduino_hit(target.unwrap());
                                 (&mut my_board).ships_left -= 1;
                             }
                         }
@@ -266,8 +268,8 @@ pub async fn run_game(
                         has_fired = true;
                         handle.emit_all("my-board-hit", pos).unwrap();
                         if my_board.ships[pos] {
-                            port.arduino_vibrate().unwrap();
-                            port.arduino_set_led(pos);
+                            // port.arduino_vibrate().unwrap();
+                            // port.arduino_set_led(pos);
                             (&mut my_board).ships_left -= 1;
                         }
                     }
@@ -286,7 +288,7 @@ pub async fn run_game(
                 }
             }
         }
-        port.arduino_reset_leds().unwrap();
+        port.arduino_reset().unwrap();
         handle.unlisten(fire_event);
         // });
     }
@@ -368,26 +370,30 @@ fn move_cursor_by_dir(
     cursor: &mut Vector2,
     cols: usize,
     rows: usize,
-    joystick_direction: JoystickDirections) {
+    joystick_direction: JoystickDirection) {
     let cursor_pos = cursor_pos_state.0.lock().unwrap().unwrap();
+    let mut dir = Vector2{x: joystick_direction.x as f32, y: joystick_direction.y as f32};
+    dir = dir.normalize();
+    cursor.x = (cursor.x - dir.x * 0.01).clamp(-1.0, 1.0);
+    cursor.y = (cursor.y - dir.y * 0.01).clamp(-1.0, 1.0);
     // let change: i32;
-    match joystick_direction {
-        JoystickDirections::Down => {
-            cursor.y = (cursor.y - 0.01).max(-0.99);
-        }
-        JoystickDirections::Right => {
-            cursor.x = (cursor.x + 0.01).min(0.99);
-        }
-        JoystickDirections::Up => {
-            cursor.y = (cursor.y + 0.01).min(0.99);
-        }
-        JoystickDirections::Left => {
-            cursor.x = (cursor.x - 0.01).max(-0.99);
-        }
-        JoystickDirections::Stay => {
-            // change = 0;
-        }
-    }
+    // match joystick_direction {
+    //     JoystickDirections::Down => {
+    //         cursor.y = (cursor.y - 0.01).max(-0.99);
+    //     }
+    //     JoystickDirections::Right => {
+    //         cursor.x = (cursor.x + 0.01).min(0.99);
+    //     }
+    //     JoystickDirections::Up => {
+    //         cursor.y = (cursor.y + 0.01).min(0.99);
+    //     }
+    //     JoystickDirections::Left => {
+    //         cursor.x = (cursor.x - 0.01).max(-0.99);
+    //     }
+    //     JoystickDirections::Stay => {
+    //         // change = 0;
+    //     }
+    // }
     *cursor_pos_state.0.lock().unwrap() = Some(cursor.selected(rows, cols));
     handle
         .emit_all("update-2d-cursor-pos", *cursor)
