@@ -4,17 +4,20 @@ use std::time::Instant;
 use std::{sync::Mutex, time::Duration};
 use std::{str, thread};
 use serde::{Serialize, Deserialize};
+use serde_json::json;
 use serialport::{SerialPort, FlowControl};
 
-use crate::battleship::JoystickDirections;
 
-
+#[derive(Serialize, Deserialize)]
+struct Board {
+    board: Vec<bool>,
+}
 pub struct JoystickDirection {
     pub x: i32,
     pub y: i32,
 }
 
-
+#[derive(PartialEq)]
 pub enum InputTag { Reset, Board, Fire, Joystick, End, Turn }
 
 
@@ -22,6 +25,7 @@ pub struct Input {
     pub tag: InputTag,
     pub ships: Vec<bool>,
     pub joystick_direction: JoystickDirection,
+    pub turn: Option<bool>,
 }
 
 pub struct SerialDriver{
@@ -40,52 +44,64 @@ impl SerialDriver{
     }
 
     // Depricated, should now send board instead
-    pub fn arduino_get_board(&self) -> Result<Option<Vec<bool>>, String> {
+    // pub fn arduino_get_board(&self) -> Result<Option<Vec<bool>>, String> {
+    //     let input;
+    //     match self.write("1\n") {
+    //         Ok(text) => input = text,
+    //         Err(err) => return Err(format!("Could not write: {}", err)),
+    //     };
+
+    //     if input.trim() == "0" {
+    //         return Ok(None); // Fire
+    //     }
+
+    //     let parsed: Board = match serde_json::from_str(&input) {
+    //         Ok(res) => res,
+    //         Err(err) => return Err(format!("Could not parse json: {}", err)),
+    //     };
+
+    //     return Ok(Some(parsed.board));
+    // }
+    pub fn arduino_try_get_board(&self) -> Result<Input, String> {
+        // let board = Board{board: ships};
+        // let json = json!(board);
         let input;
         match self.write("1\n") {
             Ok(text) => input = text,
             Err(err) => return Err(format!("Could not write: {}", err)),
         };
-
-        if input.trim() == "0" {
-            return Ok(None); // Fire
-        }
-
-        let parsed: Board = match serde_json::from_str(&input) {
-            Ok(res) => res,
-            Err(err) => return Err(format!("Could not parse json: {}", err)),
-        };
-
-        return Ok(Some(parsed.board));
+        return SerialDriver::handle_response(input);
     }
 
-    pub fn arduino_get_joystick_direction(& self) -> Result<Option<JoystickDirection>, String> {
+    pub fn arduino_send_board(&self, ships: Vec<bool>) -> Result<Input, String> {
+        let board = Board{board: ships};
+        let json = json!(board).to_string();
+        let input;
+        match self.write(("1".to_owned() + json.as_str() + "\n").as_str()) {
+            Ok(text) => input = text,
+            Err(err) => return Err(format!("Could not write: {}", err)),
+        };
+        return SerialDriver::handle_response(input);
+    }
+
+    pub fn arduino_get_joystick_direction(& self) -> Result<Input, String> {
         let input;
         match self.write("2\n") {
             Ok(text) => input = text,
             Err(err) => return Err(format!("Could not write: {}", err)),
         };
+        return SerialDriver::handle_response(input);
         // println!("{}", input);
-        if input.len() == 0 {
-            return Err("No response from arduino".to_string());
-        }
-        let first_char = input.as_bytes()[0];
-        match first_char {
-            b'2' => Ok(None),
-            b'3' => {
-                let trimmed_input: &str = &input[1..input.len()].trim();
-                let vec = trimmed_input.split(',').filter_map(|s| s.parse::<i32>().ok()).collect::<Vec<_>>(); // <- this does not work
-                Ok(Some(JoystickDirection{x: vec[0], y: vec[1]}))},
-            err => Err(format!("Could not match direction: {}", err)),
-        }
-
-        // match input.as_str().trim() {
-        //     "0" => Ok(None), // Fire
-        //     "1" => Ok(Some(JoystickDirections::Right)), // Right
-        //     "2" => Ok(Some(JoystickDirections::Left)), // Left
-        //     "3" => Ok(Some(JoystickDirections::Up)), // Up
-        //     "4" => Ok(Some(JoystickDirections::Down)), // Down
-        //     "5" => Ok(Some(JoystickDirections::Stay)), // Stay
+        // if input.len() == 0 {
+        //     return Err("No response from arduino".to_string());
+        // }
+        // let first_char = input.as_bytes()[0];
+        // match first_char {
+        //     b'2' => Ok(None),
+        //     b'3' => {
+        //         let trimmed_input: &str = &input[1..input.len()].trim();
+        //         let vec = trimmed_input.split(',').filter_map(|s| s.parse::<i32>().ok()).collect::<Vec<_>>(); // <- this does not work
+        //         Ok(Some(JoystickDirection{x: vec[0], y: vec[1]}))},
         //     err => Err(format!("Could not match direction: {}", err)),
         // }
     }
@@ -104,11 +120,39 @@ impl SerialDriver{
         };
     }
 
+    pub fn arduino_try_get_fire(& self) -> Result<Input, String> {
+        let input;
+        match self.write("\n") {
+            Ok(text) => input = text,
+            Err(err) => return Err(format!("Could not write: {}", err)),
+        };
+        return SerialDriver::handle_response(input);
+    }
+
+    pub fn arduino_try_get_turn(& self) -> Option<bool> {
+        let input;
+        match self.write("\n") {
+            Ok(text) => input = text,
+            Err(_) => return None,
+        };
+        let res = SerialDriver::handle_response(input);
+        if res.is_ok() {
+            if res.unwrap().tag == InputTag::Turn {
+                return Some(true);
+            }
+        }
+        return None;
+    }
 
     fn handle_response(input: String) -> Result<Input, String> {
+        if input.len() == 0 {
+            return Err("No response from arduino".to_string());
+        }
         let first_char = input.as_bytes()[0];
         match first_char {
-            b'0' => Ok(Input{tag: InputTag::Reset, ships: vec![false; 0], joystick_direction: JoystickDirection{x: 0, y: 0}}), // Reset
+            // Reset
+            b'0' => Ok(Input{tag: InputTag::Reset, ships: vec![false; 0], joystick_direction: JoystickDirection{x: 0, y: 0}, turn: None}), 
+            // Board
             b'1' => {
                 let trimmed_input: &str = &input[1..input.len()];
                 let parsed: Board = match serde_json::from_str(&trimmed_input) {
@@ -116,17 +160,21 @@ impl SerialDriver{
                     Err(err) => return Err(format!("Could not parse json: {}", err)),
                 };
                 
-                Ok(Input{tag: InputTag::Board, ships: parsed.board, joystick_direction: JoystickDirection{x: 0, y: 0}})
-            }, // Board
-            b'2' => Ok(Input{tag: InputTag::Fire, ships: vec![false; 0], joystick_direction: JoystickDirection{x: 0, y: 0}}), // Fire
+                Ok(Input{tag: InputTag::Board, ships: parsed.board, joystick_direction: JoystickDirection{x: 0, y: 0}, turn: None})
+            }, 
+            // Fire
+            b'2' => Ok(Input{tag: InputTag::Fire, ships: vec![false; 0], joystick_direction: JoystickDirection{x: 0, y: 0}, turn: None}), 
+            // JS Dir
             b'3' => {
-                let trimmed_input: &str = &input[1..input.len()];
+                let trimmed_input: &str = &input[1..input.len()].trim();
                 let vec = trimmed_input.split(",").filter_map(|s| s.parse::<i32>().ok()).collect::<Vec<_>>();
                 
-                Ok(Input{tag: InputTag::Joystick, ships: vec![false; 0], joystick_direction: JoystickDirection{x: vec[0], y: vec[1]}})
-            }, // JS Dir
-            b'4' => Ok(Input{tag: InputTag::End, ships: vec![false; 0], joystick_direction: JoystickDirection{x: 0, y: 0}}), // Defeat
-            b'5' => Ok(Input{tag: InputTag::Turn, ships: vec![false; 0], joystick_direction: JoystickDirection{x: 0, y: 0}}), // Your turn
+                Ok(Input{tag: InputTag::Joystick, ships: vec![false; 0], joystick_direction: JoystickDirection{x: vec[0], y: vec[1]}, turn: Some(vec[2] == 1)})
+            }, 
+            // Defeat
+            b'4' => Ok(Input{tag: InputTag::End, ships: vec![false; 0], joystick_direction: JoystickDirection{x: 0, y: 0}, turn: None}), 
+            // Your turn
+            b'5' => Ok(Input{tag: InputTag::Turn, ships: vec![false; 0], joystick_direction: JoystickDirection{x: 0, y: 0}, turn: None}), 
             err => Err(format!("Could not handle response: {}", err)),
         }
     }
@@ -155,10 +203,13 @@ impl SerialDriver{
         thread::spawn(move || {
             loop {
                 let mut port: Option<Box<dyn SerialPort>> = None;
-                port = if port.is_some() { 
-                        port
-                    } else {
-                        Some(open_port(port_name.as_str(), baudrate).unwrap())
+                
+                if !port.is_some() {
+                        match open_port(port_name.as_str(), baudrate) {
+                            Ok(res) => port = Some(res),
+                            Err(_) => (),
+                        }
+                        // Some(open_port(port_name.as_str(), baudrate).unwrap())
                     };
 
                 if port.is_some() {
@@ -198,10 +249,7 @@ impl SerialDriver{
 //     b: u32,
 // }
 
-#[derive(Serialize, Deserialize)]
-struct Board {
-    board: Vec<bool>,
-}
+
 
 // impl Port{
 //     // pub fn set_arduino_leds(leds: Vec<RGB>) {

@@ -7,7 +7,7 @@ use std::{
 };
 use tauri::Manager;
 
-use crate::vector2::*;
+use crate::{vector2::*, serialport_manager::InputTag};
 
 use crate::serialport_manager::{SerialDriver, JoystickDirection};
 pub struct CursorPos(pub Mutex<Option<usize>>);
@@ -47,6 +47,8 @@ pub async fn run_game(
     if is_first_game {
         port.run_port();
     }
+
+    let mut is_my_turn = false;
     
     if true {
         let mut total_ships = 0;
@@ -148,144 +150,154 @@ pub async fn run_game(
         });
 
         // thread::spawn(move || {
-        // Place own ships
+
+        // Place own ships and wait for opponents ships
+        let mut is_own_ships_placed = false;
+        let mut is_opponents_ships_placed = true;
         loop {
-            break;
+            handle.emit_all("game-state", "Setup").unwrap();
+
             let mut fire = false;
-            // Get ship positions from arduino
-            let res = port.arduino_get_board();
-            if res.is_ok() {
-                match res.unwrap() {
-                    Some(ships) => {
-                        for (i, _) in ships.iter().enumerate() {
-                            my_board.ships[i] = ships[i];
-                        }
-                    }
-                    None => fire = true,
-                };
+
+            // Get board from camera
+            let mut ships = vec![false; 100];
+            ships[0] = true;
+            ships[1] = true;
+            ships[87] = true;
+            ships[88] = true;
+            ships[89] = true;
+            my_board.ships = ships.clone();
+
+            let fire_res = port.arduino_try_get_fire();
+            if fire_res.is_ok() {
+                let input = fire_res.unwrap();
+                fire = input.tag == InputTag::Fire;
             }
+
+            // Check to confirm ship positions (change to listen for arduino fire)
+            if (fire || rx.try_recv().is_ok()) && !is_own_ships_placed{
+                let res = port.arduino_send_board(ships);
+                if res.is_ok() {
+                    let input = res.unwrap();
+                    if input.tag == InputTag::Turn {
+                        is_my_turn = true;
+                    }
+                }
+                is_own_ships_placed = true;
+                handle.emit_all("game-state", "WaitSetup").unwrap();
+            }
+
+            let res = port.arduino_try_get_board();
+            if res.is_ok() {
+                let input = res.unwrap();
+                if input.tag == InputTag::Board {
+                    their_board.ships = input.ships;
+                    is_opponents_ships_placed = true;
+                }
+            }
+
             // Send positions to frontend
             handle
                 .emit_all("board-state", (&my_board).ships.clone())
                 .unwrap();
 
-            // Check if game should start (change to listen for arduino fire)
-            if fire || rx.try_recv().is_ok() {
-                // setup_handle.unlisten(event_handler);
+            // Check if game should start
+            if is_own_ships_placed && is_opponents_ships_placed {
+                if is_my_turn {
+                    handle.emit_all("game-state", "YourTurn").unwrap();
+                } else {
+                    handle.emit_all("game-state", "OtherTurn").unwrap();
+                }
                 break;
             }
+            
             thread::sleep(Duration::from_millis(10));
         }
+
         handle
             .emit_all("board-state", (&my_board).ships.clone())
             .unwrap();
         
+        // Avoid missfire
+        thread::sleep(Duration::from_millis(500));
+
+        // Game loop
         let mut now = Instant::now();
         let mut cursor = Vector2{x: 0.0, y: 0.0};
         loop {
             let mut fire = false;
+
+            // if !is_my_turn && port.arduino_try_get_turn().is_some() {
+            //     is_my_turn = true;
+            //     handle.emit_all("game-state", "YourTurn").unwrap();
+            // }
+            
             // let cursor_pos = cursor_pos_state.0.lock().unwrap().unwrap();
             let cursor_pos_state_clone = cursor_pos_state.clone();
             let cursor_pos = cursor_pos_state_clone.0.lock().unwrap().unwrap();
             let res = port.arduino_get_joystick_direction();
-
+            
             if res.is_ok() {
-                match res.unwrap() {
-                    Some(direction) => {
+                let input = res.unwrap();
+                match input.tag {
+                    InputTag::Reset => todo!(),
+                    InputTag::Board => (),
+                    InputTag::Fire => fire = true,
+                    InputTag::Joystick => {
                         if now.elapsed() > Duration::from_millis(10) {
                             now = Instant::now();
-                            move_cursor_by_dir(handle.clone(), cursor_pos_state_clone, &mut cursor, cols, rows, direction);
+                            move_cursor_by_dir(handle.clone(), cursor_pos_state_clone, &mut cursor, cols, rows, input.joystick_direction);
                         }
                     },
-                    None => fire = true,
-                };
+                    InputTag::End => {
+                        handle.emit_all("game-state", "Defeat").unwrap();
+                        break;
+                    },
+                    InputTag::Turn => {
+                        is_my_turn = true;
+                        handle.emit_all("game-state", "YourTurn").unwrap();
+                    },
+                }
+                if input.turn.is_some() {
+                    if input.turn.unwrap() {
+                        is_my_turn = true;
+                        handle.emit_all("game-state", "YourTurn").unwrap();
+                    };
+                }
             }
-            // Game has started, wait for fire command
-            if (fire || rx.try_recv().is_ok()) && !((&mut their_board).hits[cursor_pos]) {
-                // Handle fire
-                // Change hit state
-                (&mut their_board).hits[cursor_pos] = true;
-                if their_board.ships[cursor_pos] {
-                    // Enemy ship was hit
-                    their_board.ships_left -= 1;
-                    port.arduino_hit(cursor_pos);
-                    handle.emit_all("enemy-board-hit", cursor_pos).unwrap();
-                } else {
-                    // Miss
-                    port.arduino_miss();
-                    handle.emit_all("enemy-board-miss", cursor_pos).unwrap();
-                }
-
-                // Do enemy turn
-                let mut has_fired = false;
-                // Check if ship hit
-                let mut ship_hits = vec![false; (rows * cols).into()];
-
-                for (i, hit) in (&my_board).hits.clone().iter().enumerate() {
-                    if (&my_board).ships[i] && *hit {
-                        ship_hits[i] = true;
+                  
+            // Do turn
+            if is_my_turn {
+                // Game has started, wait for fire command
+                if (fire || rx.try_recv().is_ok()) && !((&mut their_board).hits[cursor_pos]) {
+                    // Handle fire
+                    // Change hit state
+                    (&mut their_board).hits[cursor_pos] = true;
+                    if their_board.ships[cursor_pos] {
+                        // Enemy ship was hit
+                        their_board.ships_left -= 1;
+                        port.arduino_hit(cursor_pos).unwrap();
+                        handle.emit_all("enemy-board-hit", cursor_pos).unwrap();
                     } else {
-                        ship_hits[i] = false;
+                        // Miss
+                        port.arduino_miss().unwrap();
+                        handle.emit_all("enemy-board-miss", cursor_pos).unwrap();
                     }
+                    is_my_turn = false;
+                    handle.emit_all("game-state", "OtherTurn").unwrap();
                 }
+            }
 
-                for (i, hit) in ship_hits.iter().enumerate() {
-                    if *hit && !has_fired {
-                        // Check surrounding tiles
-                        let mut target = None;
-                        if i >= cols && !(&my_board).hits[i - cols] {
-                            // Up
-                            target = Some(i - cols);
-                        } else if (i + 1) % cols != 0 && !(&my_board).hits[i + 1] {
-                            // Right
-                            target = Some(i + 1);
-                        } else if (i + cols) < (cols * rows) && !(&my_board).hits[i + cols] {
-                            // Down
-                            target = Some(i + cols);
-                        } else if i % cols != 0 && !(&my_board).hits[i - 1] {
-                            // Left
-                            target = Some(i - 1);
-                        }
-                        // Hit surrounding tile
-                        if target.is_some() {
-                            (&mut my_board).hits[target.unwrap()] = true;
-                            has_fired = true;
-                            handle.emit_all("my-board-hit", target.unwrap()).unwrap();
-                            if my_board.ships[target.unwrap()] {
-                                // port.arduino_vibrate().unwrap();
-                                // port.arduino_hit(target.unwrap());
-                                (&mut my_board).ships_left -= 1;
-                            }
-                        }
-                    }
-                }
-                // Hit random cell
-                while !has_fired {
-                    let mut rng = rand::thread_rng();
-                    let pos: usize = rng.gen_range(0..=(cols * rows) - 1).into();
-                    if !(&my_board).hits[pos] {
-                        (&mut my_board).hits[pos] = true;
-                        has_fired = true;
-                        handle.emit_all("my-board-hit", pos).unwrap();
-                        if my_board.ships[pos] {
-                            // port.arduino_vibrate().unwrap();
-                            // port.arduino_set_led(pos);
-                            (&mut my_board).ships_left -= 1;
-                        }
-                    }
-                }
-
-                // Check game end condition, if ships left == 0
-                if (&their_board).ships_left == 0 {
-                    // Victory
-                    handle.emit_all("game-end", true).unwrap();
-                    break;
-                }
-                if (&my_board).ships_left == 0 {
-                    // Defeat
-                    handle.emit_all("game-end", false).unwrap();
-                    break;
-                }
+            // Check game end condition, if ships left == 0
+            if (&their_board).ships_left == 0 {
+                // Victory
+                handle.emit_all("game-state", "Win").unwrap();
+                break;
+            }
+            if (&my_board).ships_left == 0 {
+                // Defeat
+                handle.emit_all("game-state", "Defeat").unwrap();
+                break;
             }
         }
         port.arduino_reset().unwrap();
@@ -473,3 +485,63 @@ fn try_place_ship(
     }
     return false;
 }
+
+
+// // Do enemy turn
+                // let mut has_fired = false;
+                // // Check if ship hit
+                // let mut ship_hits = vec![false; (rows * cols).into()];
+
+                // for (i, hit) in (&my_board).hits.clone().iter().enumerate() {
+                //     if (&my_board).ships[i] && *hit {
+                //         ship_hits[i] = true;
+                //     } else {
+                //         ship_hits[i] = false;
+                //     }
+                // }
+                    
+                // for (i, hit) in ship_hits.iter().enumerate() {
+                //     if *hit && !has_fired {
+                //         // Check surrounding tiles
+                //         let mut target = None;
+                //         if i >= cols && !(&my_board).hits[i - cols] {
+                //             // Up
+                //             target = Some(i - cols);
+                //         } else if (i + 1) % cols != 0 && !(&my_board).hits[i + 1] {
+                //             // Right
+                //             target = Some(i + 1);
+                //         } else if (i + cols) < (cols * rows) && !(&my_board).hits[i + cols] {
+                //             // Down
+                //             target = Some(i + cols);
+                //         } else if i % cols != 0 && !(&my_board).hits[i - 1] {
+                //             // Left
+                //             target = Some(i - 1);
+                //         }
+                //         // Hit surrounding tile
+                //         if target.is_some() {
+                //             (&mut my_board).hits[target.unwrap()] = true;
+                //             has_fired = true;
+                //             handle.emit_all("my-board-hit", target.unwrap()).unwrap();
+                //             if my_board.ships[target.unwrap()] {
+                //                 // port.arduino_vibrate().unwrap();
+                //                 // port.arduino_hit(target.unwrap());
+                //                 (&mut my_board).ships_left -= 1;
+                //             }
+                //         }
+                //     }
+                // }
+                // Hit random cell
+                // while !has_fired {
+                //     let mut rng = rand::thread_rng();
+                //     let pos: usize = rng.gen_range(0..=(cols * rows) - 1).into();
+                //     if !(&my_board).hits[pos] {
+                //         (&mut my_board).hits[pos] = true;
+                //         has_fired = true;
+                //         handle.emit_all("my-board-hit", pos).unwrap();
+                //         if my_board.ships[pos] {
+                //             // port.arduino_vibrate().unwrap();
+                //             // port.arduino_set_led(pos);
+                //             (&mut my_board).ships_left -= 1;
+                //         }
+                //     }
+                // }

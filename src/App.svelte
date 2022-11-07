@@ -16,8 +16,11 @@
 
 	enum GameState {
 		Setup,
-		Fire,
-		End,
+		WaitSetup,
+		YourTurn,
+		OtherTurn,
+		Win,
+		Defeat,
 	}
 
 	interface Cell {
@@ -79,12 +82,28 @@
 			myBoard[event.payload].hit = true;
 			myBoard = myBoard;
 		});
-		await listen<boolean>("game-end", (event) => {
-			console.log("game-end");
-			if (event.payload) {
-				endMessage = "Victory!";
-			} else {
-				endMessage = "Defeat :(";
+		await listen<String>("game-state", (event) => {
+			switch (event.payload) {
+				case "Setup":
+					gameState = GameState.Setup;
+					break;
+				case "WaitSetup":
+					gameState = GameState.WaitSetup;
+					break;
+				case "YourTurn":
+					gameState = GameState.YourTurn;
+					break;
+				case "OtherTurn":
+					gameState = GameState.OtherTurn;
+					break;
+				case "Win":
+					gameState = GameState.Win;
+					break;
+				case "Defeat":
+					gameState = GameState.Defeat;
+					break;
+				default:
+					break;
 			}
 		});
 		await listen<number>("update-cursor-pos", (event) => {
@@ -103,8 +122,8 @@
 
 	async function runGame(isFirstGame = false) {
 		createEmptyBoards();
-		gameState = GameState.Fire;
-		await invoke("run_game", { shipSizes: shipSizes, isFirstGame: isFirstGame }).then(() => (gameState = GameState.End));
+		// gameState = GameState.Fire;
+		await invoke("run_game", { shipSizes: shipSizes, isFirstGame: isFirstGame });
 	}
 
 	async function moveCursor(direction: JoystickDirections) {
@@ -123,7 +142,7 @@
 	}
 
 	function fire() {
-		if (gameState != GameState.Fire) {
+		if (gameState == GameState.Defeat || gameState == GameState.Win) {
 			endMessage = "";
 			runGame();
 		} else {
@@ -137,6 +156,23 @@
 
 	function getHoverColor(cell) {
 		return cell.ship && cell.hit ? "#9a0e2a" : cell.hit ? "blue" : "#05FB11";	
+	}
+
+	function getGameStateText(gameState) {
+		switch (gameState) {
+			case GameState.Setup:
+				return "Press fire to confirm ship positions";
+			case GameState.WaitSetup:
+				return "Please wait for the other player to place their ships";
+			case GameState.YourTurn:
+				return "Your turn";
+			case GameState.OtherTurn:
+				return "Wait for enemy turn";
+			case GameState.Win:
+				return "Congratulations you won!";
+			case GameState.Defeat:
+				return "Defeat :(";
+		}
 	}
 
 </script>
@@ -178,8 +214,10 @@
 			</div>
 		</div>
 	</div>
+	
+	<h1 style="max-width: {boardSize};" class="mb-5">{getGameStateText(gameState)}</h1>
 
-	{#if gameState == GameState.Setup}
+	{#if gameState == GameState.Setup || gameState == GameState.WaitSetup}
 		<div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board my grid gap-2">
 			{#each myBoard as cell, i}
 				<div class="w-20 h-20 text-sm bg-slate-500 rounded-xl grid content-center shadow-md {getCellClasses(cell, cursorPosition)}">
@@ -191,7 +229,8 @@
 				</div>
 			{/each}
 		</div>
-	{:else if gameState == GameState.Fire}
+	{:else}
+	<!-- {:else if gameState == GameState.YourTurn || gameState == GameState.OtherTurn} -->
 		<div class="game w-fit">
 			{#if showMyBoard}
 				<div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board my grid gap-2">
@@ -207,9 +246,7 @@
 				</div>
 			{/if}
 			<div style="transform: translate({0}px, {0}px); width: {boardSize}px; height: {boardSize}px;" class=" relative radar">
-				
-				
-				<div class="z-10">
+				<!-- <div class="z-10"> -->
 				{#each theirBoard as cell, i}
 					<CircleSector
 						width={(0.5 * boardSize) / rows - boardGap}
@@ -224,7 +261,7 @@
 						selected={cursorPosition == i}
 					/>
 				{/each}
-				</div>
+				<!-- </div> -->
 				<div class="z-20"><RadarAnimation size={boardSize} /></div>
 				<div style="top: {boardSize-(cursor.y+1)*0.5*boardSize}px; left: {(cursor.x+1)*0.5*boardSize}px;" class="cursor z-50"></div>
 			</div>
@@ -240,8 +277,8 @@
 				{/each}
 			</div> -->
 		</div>
-	{:else if gameState == GameState.End}
-		<h1>{endMessage}</h1>
+	<!-- {:else if gameState == GameState.Win}
+		<h1>{endMessage}</h1> -->
 	{/if}
 </main>
 
