@@ -15,6 +15,7 @@
 	}
 
 	enum GameState {
+		PreSetup,
 		Setup,
 		WaitSetup,
 		YourTurn,
@@ -34,7 +35,8 @@
 		y: number;
 	}
 
-	let gameState = GameState.Setup;
+	let gameState = GameState.PreSetup;
+	let port_connected = false;
 	let rows = 10;
 	let cols = 10;
 	let myBoard = [];
@@ -43,11 +45,10 @@
 	let showDebug = false;
 	let showMyBoard = false;
 	let showDirectionButtons = false;
-	let shipSizes = [2,3,3,4,5];
-	let endMessage = "";
+	let shipSizes = [2, 3, 3, 4, 5];
 	let boardSize = 800;
 	let boardGap = 5;
-	let cursor = {x: 0, y: 0};
+	let cursor = { x: 0, y: 0 };
 
 	createEmptyBoards();
 
@@ -117,13 +118,15 @@
 		await invoke("set_cursor_pos", { newPos: cursorPosition });
 		await invoke("set_cols", { newCols: cols });
 		await invoke("set_rows", { newRows: rows });
-		runGame(true);
 	});
 
-	async function runGame(isFirstGame = false) {
+	async function startGame() {
 		createEmptyBoards();
-		// gameState = GameState.Fire;
-		await invoke("run_game", { shipSizes: shipSizes, isFirstGame: isFirstGame });
+		await invoke("run_game", { shipSizes: shipSizes });
+	}
+
+	async function restartGame() {
+		await invoke("restart_game").then(() => startGame());
 	}
 
 	async function moveCursor(direction: JoystickDirections) {
@@ -142,12 +145,7 @@
 	}
 
 	function fire() {
-		if (gameState == GameState.Defeat || gameState == GameState.Win) {
-			endMessage = "";
-			runGame();
-		} else {
-			emit("fire");
-		}
+		emit("fire");
 	}
 
 	function getCellColor(cell) {
@@ -155,11 +153,17 @@
 	}
 
 	function getHoverColor(cell) {
-		return cell.ship && cell.hit ? "#9a0e2a" : cell.hit ? "blue" : "#05FB11";	
+		return cell.ship && cell.hit ? "#9a0e2a" : cell.hit ? "blue" : "#05FB11";
 	}
 
 	function getGameStateText(gameState) {
 		switch (gameState) {
+			case GameState.PreSetup:
+				if (port_connected) {
+					return "Ready to start the game";
+				} else {
+					return "Please connect the controller";
+				}
 			case GameState.Setup:
 				return "Press fire to confirm ship positions";
 			case GameState.WaitSetup:
@@ -175,49 +179,63 @@
 		}
 	}
 
+	let debug = false;
+	function toggleDebug() {
+		debug = !debug;
+	}
 </script>
 
 <main>
-	<div class=" fixed top-10 left-10 flex flex-col text-left z-[100]">
-		<PickPort />
-
-		<label class="mt-2 w-fit">
-			Show debug info
-			<input type="checkbox" name="debugInfo" bind:checked={showDebug} class=" w-4 h-4 ml-2" />
-		</label>
-		<label class="w-fit">
-			Show own board
-			<input type="checkbox" name="debugInfo" bind:checked={showMyBoard} class=" w-4 h-4 ml-2" />
-		</label>
-		<label class="w-fit">
-			Show direction buttons
-			<input type="checkbox" name="debugInfo" bind:checked={showDirectionButtons} class=" w-4 h-4 ml-2" />
-		</label>
-		<label class="w-fit">
-			Size
-			<input type="range" name="" id="" min="400" max="1000" bind:value={boardSize}>
-			{boardSize}
-		</label>
-		<!-- <label class="w-fit mt-2 mb-2">
-			<button on:click={confirmShips}>Confirm ship positions</button>
-			
-		</label> -->
-		<div class="mt-4">
-			<div class="mb-5">
-				<button on:click={fire}>Fire</button>
-				{#if showDirectionButtons}
-					<button on:click={() => moveCursor(JoystickDirections.Up)}>Up</button>
-					<button on:click={() => moveCursor(JoystickDirections.Right)}>Right</button>
-					<button on:click={() => moveCursor(JoystickDirections.Down)}>Down</button>
-					<button on:click={() => moveCursor(JoystickDirections.Left)}>Left</button>
-				{/if}
+	<div class="fixed top-5 right-5 flex flex-col gap-2 text-left z-[100]">
+		<button on:click={restartGame} class="w-min">Restart</button>
+		<button on:click={toggleDebug} class="w-min">Debug</button>
+	</div>
+	{#if debug}
+		<div class=" fixed top-5 left-5 flex flex-col text-left z-[100]">
+			<label class="mt-2 w-fit">
+				Show debug info
+				<input type="checkbox" name="debugInfo" bind:checked={showDebug} class=" w-4 h-4 ml-2" />
+			</label>
+			<label class="w-fit">
+				Show own board
+				<input type="checkbox" name="debugInfo" bind:checked={showMyBoard} class=" w-4 h-4 ml-2" />
+			</label>
+			<label class="w-fit">
+				Show direction buttons
+				<input type="checkbox" name="debugInfo" bind:checked={showDirectionButtons} class=" w-4 h-4 ml-2" />
+			</label>
+			<label class="w-fit">
+				Size
+				<input type="range" name="" id="" min="400" max="1000" bind:value={boardSize} />
+				{boardSize}
+			</label>
+			<!-- <label class="w-fit mt-2 mb-2">
+				<button on:click={confirmShips}>Confirm ship positions</button>
+				
+			</label> -->
+			<div class="mt-4">
+				<div class="mb-5">
+					<button on:click={fire}>Fire</button>
+					{#if showDirectionButtons}
+						<button on:click={() => moveCursor(JoystickDirections.Up)}>Up</button>
+						<button on:click={() => moveCursor(JoystickDirections.Right)}>Right</button>
+						<button on:click={() => moveCursor(JoystickDirections.Down)}>Down</button>
+						<button on:click={() => moveCursor(JoystickDirections.Left)}>Left</button>
+					{/if}
+				</div>
 			</div>
 		</div>
-	</div>
-	
+	{/if}
+
 	<h1 style="max-width: {boardSize};" class="mb-5">{getGameStateText(gameState)}</h1>
 
-	{#if gameState == GameState.Setup || gameState == GameState.WaitSetup}
+	{#if gameState == GameState.PreSetup}
+		{#if !port_connected}
+			<PickPort bind:port_connected />
+		{:else}
+			<button on:click={startGame}>Start game</button>
+		{/if}
+	{:else if gameState == GameState.Setup || gameState == GameState.WaitSetup}
 		<div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board my grid gap-2">
 			{#each myBoard as cell, i}
 				<div class="w-20 h-20 text-sm bg-slate-500 rounded-xl grid content-center shadow-md {getCellClasses(cell, cursorPosition)}">
@@ -230,7 +248,6 @@
 			{/each}
 		</div>
 	{:else}
-	<!-- {:else if gameState == GameState.YourTurn || gameState == GameState.OtherTurn} -->
 		<div class="game w-fit">
 			{#if showMyBoard}
 				<div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board my grid gap-2">
@@ -245,8 +262,8 @@
 					{/each}
 				</div>
 			{/if}
+
 			<div style="transform: translate({0}px, {0}px); width: {boardSize}px; height: {boardSize}px;" class=" relative radar">
-				<!-- <div class="z-10"> -->
 				{#each theirBoard as cell, i}
 					<CircleSector
 						width={(0.5 * boardSize) / rows - boardGap}
@@ -255,35 +272,20 @@
 						sections={cols}
 						radius={((0.5 * boardSize) / rows) * (1 + Math.floor(i / cols))}
 						n={i % cols}
-						letter={(Math.floor(i / cols))}
+						letter={Math.floor(i / cols)}
 						gap={boardGap}
 						center={boardSize / 2}
 						selected={cursorPosition == i}
 					/>
 				{/each}
-				<!-- </div> -->
 				<div class="z-20"><RadarAnimation size={boardSize} /></div>
-				<div style="top: {boardSize-(cursor.y+1)*0.5*boardSize}px; left: {(cursor.x+1)*0.5*boardSize}px;" class="cursor z-50"></div>
+				<div style="top: {boardSize - (cursor.y + 1) * 0.5 * boardSize}px; left: {(cursor.x + 1) * 0.5 * boardSize}px;" class="cursor z-50" />
 			</div>
-			<!-- <div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board their grid gap-2">
-				{#each theirBoard as cell, i}
-					<div class="w-20 h-20 text-sm bg-slate-500 rounded-xl grid content-center shadow-md {getCellClasses(cell, cursorPosition)}">
-						{#if showDebug}
-							<p>{cell.index}</p>
-							<p>Ship: {cell.ship}</p>
-							<p>Hit: {cell.hit}</p>
-						{/if}
-					</div>
-				{/each}
-			</div> -->
 		</div>
-	<!-- {:else if gameState == GameState.Win}
-		<h1>{endMessage}</h1> -->
 	{/if}
 </main>
 
 <style>
-
 	.game {
 		display: grid;
 		grid-auto-flow: column;
@@ -309,10 +311,10 @@
 		border-radius: 100%;
 		transform: translate(-5px, -5px);
 	}
-	.radar{
-		background-color: #05FB11;
+	.radar {
+		background-color: #05fb11;
 		border-radius: 50%;
-		border: 5px solid #05FB11;
+		border: 5px solid #05fb11;
 		box-sizing: content-box;
 	}
 </style>

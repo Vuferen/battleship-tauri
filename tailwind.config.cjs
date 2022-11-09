@@ -1,11 +1,16 @@
 const config = {
-  content: ["./src/**/*.{html,js,svelte,ts}"],
+	content: ["./src/**/*.{html,js,svelte,ts}"],
 
-  theme: {
-    extend: {},
-  },
+	theme: {
+		extend: {
+			colors: {
+				main: "var(--main-color)",
+				"main-hover": "var(--main-color-hover)",
+			},
+		},
+	},
 
-  plugins: [],
+	plugins: [],
 };
 
 module.exports = config;
