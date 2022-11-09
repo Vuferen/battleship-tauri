@@ -1,12 +1,11 @@
-use std::io::{BufReader, BufRead};
-use std::sync::mpsc::{self, Sender, Receiver};
-use std::time::Instant;
-use std::{sync::Mutex, time::Duration};
-use std::{str, thread};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
-use serialport::{SerialPort, FlowControl};
-
+use serialport::{FlowControl, SerialPort};
+use std::io::{BufRead, BufReader};
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::time::Instant;
+use std::{str, thread};
+use std::{sync::Mutex, time::Duration};
 
 #[derive(Serialize, Deserialize)]
 struct Board {
@@ -18,8 +17,14 @@ pub struct JoystickDirection {
 }
 
 #[derive(PartialEq)]
-pub enum InputTag { Reset, Board, Fire, Joystick, End, Turn }
-
+pub enum InputTag {
+    Reset,
+    Board,
+    Fire,
+    Joystick,
+    End,
+    Turn,
+}
 
 pub struct Input {
     pub tag: InputTag,
@@ -28,17 +33,16 @@ pub struct Input {
     pub turn: Option<bool>,
 }
 
-pub struct SerialDriver{
+pub struct SerialDriver {
     pub port: Mutex<String>,
     pub baudrate: Mutex<u32>,
     pub buffer_recv: Mutex<Option<Receiver<String>>>,
     pub writer_send: Mutex<Option<Sender<String>>>,
-    //pub exit_send: Mutex<Option<Sender<bool>>>,
-    //pub running: bool,
+    pub exit_send: Mutex<Option<Sender<bool>>>,
 }
 
-impl SerialDriver{
-    pub fn arduino_reset(& self) -> Result<String, String> {
+impl SerialDriver {
+    pub fn arduino_reset(&self) -> Result<String, String> {
         match self.write("0\n") {
             Ok(text) => return Ok(text),
             Err(err) => return Err(format!("Could not write: {}", err)),
@@ -76,7 +80,7 @@ impl SerialDriver{
     }
 
     pub fn arduino_send_board(&self, ships: Vec<bool>) -> Result<Input, String> {
-        let board = Board{board: ships};
+        let board = Board { board: ships };
         let json = json!(board).to_string();
         let input;
         match self.write(("1".to_owned() + json.as_str() + "\n").as_str()) {
@@ -86,7 +90,7 @@ impl SerialDriver{
         return SerialDriver::handle_response(input);
     }
 
-    pub fn arduino_get_joystick_direction(& self) -> Result<Input, String> {
+    pub fn arduino_get_joystick_direction(&self) -> Result<Input, String> {
         let input;
         match self.write("2\n") {
             Ok(text) => input = text,
@@ -108,21 +112,21 @@ impl SerialDriver{
         // }
     }
 
-    pub fn arduino_miss(& self) -> Result<String, String> {
+    pub fn arduino_miss(&self) -> Result<String, String> {
         match self.write("4\n") {
             Ok(text) => return Ok(text),
             Err(err) => return Err(format!("Could not write: {}", err)),
         };
     }
 
-    pub fn arduino_hit(& self, cell: usize) -> Result<String, String> {
-        match self.write(format!("3{}\n",cell).as_str()) {
+    pub fn arduino_hit(&self, cell: usize) -> Result<String, String> {
+        match self.write(format!("3{}\n", cell).as_str()) {
             Ok(text) => return Ok(text),
             Err(err) => return Err(format!("Could not write: {}", err)),
         };
     }
 
-    pub fn arduino_try_get_fire(& self) -> Result<Input, String> {
+    pub fn arduino_try_get_fire(&self) -> Result<Input, String> {
         let input;
         match self.write("\n") {
             Ok(text) => input = text,
@@ -131,7 +135,7 @@ impl SerialDriver{
         return SerialDriver::handle_response(input);
     }
 
-    pub fn arduino_try_get_turn(& self) -> Option<bool> {
+    pub fn arduino_try_get_turn(&self) -> Option<bool> {
         let input;
         match self.write("\n") {
             Ok(text) => input = text,
@@ -153,7 +157,12 @@ impl SerialDriver{
         let first_char = input.as_bytes()[0];
         match first_char {
             // Reset
-            b'0' => Ok(Input{tag: InputTag::Reset, ships: vec![false; 0], joystick_direction: JoystickDirection{x: 0, y: 0}, turn: None}), 
+            b'0' => Ok(Input {
+                tag: InputTag::Reset,
+                ships: vec![false; 0],
+                joystick_direction: JoystickDirection { x: 0, y: 0 },
+                turn: None,
+            }),
             // Board
             b'1' => {
                 let trimmed_input: &str = &input[1..input.len()];
@@ -161,29 +170,61 @@ impl SerialDriver{
                     Ok(res) => res,
                     Err(err) => return Err(format!("Could not parse json: {}", err)),
                 };
-                
-                Ok(Input{tag: InputTag::Board, ships: parsed.board, joystick_direction: JoystickDirection{x: 0, y: 0}, turn: None})
-            }, 
+
+                Ok(Input {
+                    tag: InputTag::Board,
+                    ships: parsed.board,
+                    joystick_direction: JoystickDirection { x: 0, y: 0 },
+                    turn: None,
+                })
+            }
             // Fire
-            b'2' => Ok(Input{tag: InputTag::Fire, ships: vec![false; 0], joystick_direction: JoystickDirection{x: 0, y: 0}, turn: None}), 
+            b'2' => Ok(Input {
+                tag: InputTag::Fire,
+                ships: vec![false; 0],
+                joystick_direction: JoystickDirection { x: 0, y: 0 },
+                turn: None,
+            }),
             // JS Dir
             b'3' => {
                 let trimmed_input: &str = &input[1..input.len()].trim();
-                let vec = trimmed_input.split(",").filter_map(|s| s.parse::<i32>().ok()).collect::<Vec<_>>();
-                
-                Ok(Input{tag: InputTag::Joystick, ships: vec![false; 0], joystick_direction: JoystickDirection{x: vec[0], y: vec[1]}, turn: Some(vec[2] == 1)})
-            }, 
+                let vec = trimmed_input
+                    .split(",")
+                    .filter_map(|s| s.parse::<i32>().ok())
+                    .collect::<Vec<_>>();
+
+                Ok(Input {
+                    tag: InputTag::Joystick,
+                    ships: vec![false; 0],
+                    joystick_direction: JoystickDirection {
+                        x: vec[0],
+                        y: vec[1],
+                    },
+                    turn: Some(vec[2] == 1),
+                })
+            }
             // Defeat
-            b'4' => Ok(Input{tag: InputTag::End, ships: vec![false; 0], joystick_direction: JoystickDirection{x: 0, y: 0}, turn: None}), 
+            b'4' => Ok(Input {
+                tag: InputTag::End,
+                ships: vec![false; 0],
+                joystick_direction: JoystickDirection { x: 0, y: 0 },
+                turn: None,
+            }),
             // Your turn
-            b'5' => Ok(Input{tag: InputTag::Turn, ships: vec![false; 0], joystick_direction: JoystickDirection{x: 0, y: 0}, turn: None}), 
+            b'5' => Ok(Input {
+                tag: InputTag::Turn,
+                ships: vec![false; 0],
+                joystick_direction: JoystickDirection { x: 0, y: 0 },
+                turn: None,
+            }),
             err => Err(format!("Could not handle response: {}", err)),
         }
     }
 
-
     fn write(&self, text: &str) -> Result<String, String> {
-        (self.writer_send.lock().unwrap().as_ref().unwrap()).send(text.to_string()).unwrap();
+        (self.writer_send.lock().unwrap().as_ref().unwrap())
+            .send(text.to_string())
+            .unwrap();
         let res = (self.buffer_recv.lock().unwrap().as_ref().unwrap()).recv();
 
         match res {
@@ -198,22 +239,33 @@ impl SerialDriver{
 
         let (buffer, buffer_recv) = mpsc::channel();
         *self.buffer_recv.lock().unwrap() = Some(buffer_recv);
-        // let buffer = self.buffer_send.clone();
-        let port_name  = (&*self.port.lock().expect("No port")).clone();
+
+        let (exit_sender, exit_recv) = mpsc::channel();
+        *self.exit_send.lock().unwrap() = Some(exit_sender);
+
+        let port_name = (&*self.port.lock().expect("No port")).clone();
         let baudrate = *self.baudrate.lock().expect("No baudrate");
-        
+
         thread::spawn(move || {
             let mut exit = false;
             loop {
                 let mut port: Option<Box<dyn SerialPort>> = None;
-                
+
                 if !port.is_some() {
                     match open_port(port_name.as_str(), baudrate) {
-                        Ok(res) => port = Some(res),
+                        Ok(res) => {
+                            port = Some(res);
+                        }
                         Err(_) => exit = true,
                     }
                     // Some(open_port(port_name.as_str(), baudrate).unwrap())
                 };
+
+                // Check for exit message
+                let exit_res = exit_recv.try_recv();
+                if exit_res.as_ref().is_ok() {
+                    exit = *exit_res.as_ref().unwrap();
+                }
 
                 // Terminate thread
                 if exit {
@@ -224,7 +276,7 @@ impl SerialDriver{
                     let mut the_port = port.unwrap();
                     the_port.set_flow_control(FlowControl::Hardware).unwrap();
                     let res = writer.try_recv();
-                    
+
                     if res.as_ref().is_ok() {
                         let output = res.as_ref().unwrap().as_bytes();
                         the_port.write(output).unwrap();
@@ -235,106 +287,36 @@ impl SerialDriver{
                             let res = reader.read_line(&mut input);
                             if res.is_ok() || now.elapsed() > Duration::from_millis(250) {
                                 break;
-                            } 
+                            }
                             // Add timeout here
                         }
                         buffer.send(input).unwrap();
-                    }   
-                }             
+                    }
+                }
             }
         });
     }
+
+    pub fn close_port(&self) {
+        (self.exit_send.lock().unwrap().as_ref().unwrap())
+            .send(true)
+            .unwrap();
+    }
 }
-
-// pub struct Port{
-//     pub name: Mutex<String>,
-//     pub baudrate: Mutex<u32>
-// }
-// pub struct Port(String);
-// pub struct RGB {
-//     r: u32,
-//     g: u32,
-//     b: u32,
-// }
-
-
-
-// impl Port{
-//     // pub fn set_arduino_leds(leds: Vec<RGB>) {
-//     //     // Send LED info to arduino
-//     // }
-
-//     // pub fn arduino_vibrate(duration: Duration) {
-//     //     // Send feedback to arduino
-//     // }
-
-//     pub fn arduino_get_joystick_direction(& self) -> Result<Option<JoystickDirections>, String> {
-//         let port_name  = &*self.name.lock().expect("No port").clone();
-//         let port_baudrate = *self.baudrate.lock().expect("No baudrate");
-//         let mut port = open_port(port_name, port_baudrate).unwrap();
-//         // let output = &[b'2'];
-//         let output = "2\n".as_bytes();
-//         port.write(output).unwrap();
-//         let mut reader = BufReader::new(port);
-//         let mut input = String::new();
-//         loop {
-//             let res = reader.read_line(&mut input);
-//             if res.is_ok() {
-//                 break;
-//             } 
-//         }
-
-//         match input.as_str().trim() {
-//             "0" => Ok(None), // Fire
-//             "1" => Ok(Some(JoystickDirections::Right)), // Right
-//             "2" => Ok(Some(JoystickDirections::Left)), // Left
-//             "3" => Ok(Some(JoystickDirections::Up)), // Up
-//             "4" => Ok(Some(JoystickDirections::Down)), // Down
-//             err => Err(format!("Could not match direction: {}", err)),
-//         }
-//     }
-
-//     pub fn arduino_get_board(& self) -> Result<Option<Vec<bool>>, String> {
-//         let port_name  = &*self.name.lock().expect("No port").clone();
-//         let port_baudrate = *self.baudrate.lock().expect("No baudrate");
-//         let mut port = open_port(port_name, port_baudrate).unwrap();
-//         // let output = &[b'1'];
-//         let output = "1\n".as_bytes();
-//         port.write(output).unwrap();
-//         let mut reader = BufReader::new(port);
-//         let mut input = String::new();
-//         loop {
-//             let res = reader.read_line(&mut input);
-//             // match res {
-//             //     Ok(_) => break,
-//             //     Err(err) => println!("{}", err),
-//             // }
-//             if res.is_ok() {
-//                 break;
-//             } 
-//         }
-
-//         if input.trim() == "0" {
-//             return Ok(None); // Fire
-//         }
-
-//         let parsed: Board = match serde_json::from_str(&input) {
-//             Ok(res) => res,
-//             Err(err) => return Err(format!("Could not parse json: {}", err)),
-//         };
-
-//         return Ok(Some(parsed.board));
-//     }
-// }
 
 fn open_port(name: &str, baudrate: u32) -> Result<Box<dyn SerialPort>, String> {
     match serialport::new(name, baudrate)
         .timeout(Duration::from_millis(10))
         .open()
-        {
-            Ok(res) => return Ok(res),
-            Err(err) => return Err(format!("Failed to open port {}: {}", name, err)),
-        };
+    {
+        Ok(res) => return Ok(res),
+        Err(err) => return Err(format!("Failed to open port {}: {}", name, err)),
+    };
+}
+
+#[tauri::command]
+pub fn close_port(port: tauri::State<'_, SerialDriver>) {
+    port.close_port();
 }
 
 #[tauri::command]
