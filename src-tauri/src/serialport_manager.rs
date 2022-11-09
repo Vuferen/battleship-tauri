@@ -33,6 +33,8 @@ pub struct SerialDriver{
     pub baudrate: Mutex<u32>,
     pub buffer_recv: Mutex<Option<Receiver<String>>>,
     pub writer_send: Mutex<Option<Sender<String>>>,
+    //pub exit_send: Mutex<Option<Sender<bool>>>,
+    //pub running: bool,
 }
 
 impl SerialDriver{
@@ -201,16 +203,22 @@ impl SerialDriver{
         let baudrate = *self.baudrate.lock().expect("No baudrate");
         
         thread::spawn(move || {
+            let mut exit = false;
             loop {
                 let mut port: Option<Box<dyn SerialPort>> = None;
                 
                 if !port.is_some() {
-                        match open_port(port_name.as_str(), baudrate) {
-                            Ok(res) => port = Some(res),
-                            Err(_) => (),
-                        }
-                        // Some(open_port(port_name.as_str(), baudrate).unwrap())
-                    };
+                    match open_port(port_name.as_str(), baudrate) {
+                        Ok(res) => port = Some(res),
+                        Err(_) => exit = true,
+                    }
+                    // Some(open_port(port_name.as_str(), baudrate).unwrap())
+                };
+
+                // Terminate thread
+                if exit {
+                    break;
+                }
 
                 if port.is_some() {
                     let mut the_port = port.unwrap();
