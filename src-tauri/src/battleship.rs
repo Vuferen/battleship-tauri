@@ -9,7 +9,7 @@ use std::{
 use tauri::Manager;
 
 use crate::{serialport_manager::InputTag, vector2::*};
-
+use crate::python_manager::get_ships;
 use crate::serialport_manager::{JoystickDirection, SerialDriver};
 pub struct CursorPos(pub Mutex<Option<usize>>);
 #[tauri::command]
@@ -152,7 +152,7 @@ pub async fn run_game(
     let (restart_send, restart_recv) = mpsc::channel();
     let restart_event = handle.listen_global("restart_game", move |_| {
         match restart_send.send(true) {
-            Ok(_) => {}
+            Ok(_) => {},
             Err(err) => println!("Error on restart: {}", err),
         };
     });
@@ -165,6 +165,7 @@ pub async fn run_game(
     loop {
         // Check if game should restart
         if restart_recv.try_recv().is_ok() {
+            println!("Restarting!");
             restart = true;
             break;
         }
@@ -174,19 +175,22 @@ pub async fn run_game(
         let mut fire = false;
 
         // Get board from camera
-        let mut ships = vec![false; 100];
-        ships[0] = true;
-        ships[1] = true;
-        ships[87] = true;
-        ships[88] = true;
-        ships[89] = true;
+        let ships = get_ships();
+        // let mut ships = vec![false; 100];
+        // ships[0] = true;
+        // ships[1] = true;
+        // ships[87] = true;
+        // ships[88] = true;
+        // ships[89] = true;
         my_board.ships = ships.clone();
 
         // Check for fire input from arduino
         let fire_res = port.arduino_try_get_fire();
-        if fire_res.is_ok() {
-            let input = fire_res.unwrap();
-            fire = input.tag == InputTag::Fire;
+        // let fire_res = port.arduino_get_joystick_direction();
+        if fire_res.is_some() {
+            fire = fire_res.unwrap();
+            // fire = input.tag == InputTag::Fire;
+            println!("Fire: {}", fire);
         }
 
         // Check to confirm ship positions (change to listen for arduino fire)
@@ -226,7 +230,7 @@ pub async fn run_game(
             break;
         }
 
-        thread::sleep(Duration::from_millis(10));
+        // thread::sleep(Duration::from_millis(10));
     }
 
     if !restart {
@@ -244,6 +248,7 @@ pub async fn run_game(
     while !restart {
         // Check if game should restart
         if restart_recv.try_recv().is_ok() {
+            println!("Restarting!");
             restart = true;
             break;
         }
@@ -332,7 +337,10 @@ pub async fn run_game(
     }
 
     port.arduino_reset().unwrap();
-    port.close_port();
+    match port.close_port() {
+        Ok(_) => (),
+        Err(_) => (),
+    }
     handle.unlisten(fire_event);
     handle.unlisten(restart_event);
 

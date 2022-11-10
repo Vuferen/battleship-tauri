@@ -8,6 +8,7 @@ use std::sync::Mutex;
 
 pub mod battleship;
 pub mod serialport_manager;
+pub mod python_manager;
 pub mod vector2;
 
 fn main() {
@@ -26,6 +27,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             serialport_manager::get_ports,
             serialport_manager::pick_port,
+            serialport_manager::close_port,
             battleship::set_cursor_pos,
             battleship::set_cols,
             battleship::set_rows,

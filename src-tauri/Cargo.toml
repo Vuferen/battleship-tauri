@@ -19,6 +19,7 @@ serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "1.1", features = ["api-all"] }
 serialport = "4.0.1"
 rand = "0.8.5"
+pyo3 = { version = "0.17.3", features = ["auto-initialize"] }
 # json = "0.12.4"
 
 [features]
@@ -28,3 +29,7 @@ default = [ "custom-protocol" ]
 # this feature is used used for production builds where `devPath` points to the filesystem
 # DO NOT remove this
 custom-protocol = [ "tauri/custom-protocol" ]
+
+# [dependencies.pyo3]
+# version = "0.17.3"
+# features = ["auto-initialize"]

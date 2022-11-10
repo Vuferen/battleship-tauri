@@ -126,7 +126,8 @@
 	}
 
 	async function restartGame() {
-		await invoke("restart_game").then(() => startGame());
+		await emit("restart_game").then(gameState = GameState.PreSetup);
+		// await emit("restart_game").then(() => startGame());
 	}
 
 	async function moveCursor(direction: JoystickDirections) {
@@ -156,7 +157,7 @@
 		return cell.ship && cell.hit ? "#9a0e2a" : cell.hit ? "blue" : "#05FB11";
 	}
 
-	function getGameStateText(gameState) {
+	function getGameStateText(gameState, port_connected) {
 		switch (gameState) {
 			case GameState.PreSetup:
 				if (port_connected) {
@@ -227,7 +228,7 @@
 		</div>
 	{/if}
 
-	<h1 style="max-width: {boardSize};" class="mb-5">{getGameStateText(gameState)}</h1>
+	<h1 style="max-width: {boardSize};" class="mb-5">{getGameStateText(gameState, port_connected)}</h1>
 
 	{#if gameState == GameState.PreSetup}
 		{#if !port_connected}

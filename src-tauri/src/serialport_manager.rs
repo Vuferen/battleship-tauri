@@ -126,13 +126,19 @@ impl SerialDriver {
         };
     }
 
-    pub fn arduino_try_get_fire(&self) -> Result<Input, String> {
+    pub fn arduino_try_get_fire(&self) -> Option<bool> {
         let input;
         match self.write("\n") {
             Ok(text) => input = text,
-            Err(err) => return Err(format!("Could not write: {}", err)),
+            Err(_) => return None,
         };
-        return SerialDriver::handle_response(input);
+        let res = SerialDriver::handle_response(input);
+        if res.is_ok() {
+            if res.unwrap().tag == InputTag::Fire {
+                return Some(true);
+            }
+        }
+        return None;
     }
 
     pub fn arduino_try_get_turn(&self) -> Option<bool> {
@@ -297,10 +303,21 @@ impl SerialDriver {
         });
     }
 
-    pub fn close_port(&self) {
-        (self.exit_send.lock().unwrap().as_ref().unwrap())
-            .send(true)
-            .unwrap();
+    pub fn close_port(&self) -> Result<(),String> {
+        let res_mutex = self.exit_send.lock();
+        match res_mutex {
+            Ok(_) => {
+                // let res_option = ;
+                match res_mutex.unwrap().as_ref(){
+                    Some(sender) => return sender.send(true).map_err(|_|{return "Could not restart".to_string();}),
+                    None => return Err("Restart sender not found".to_string()),
+                };
+            },
+            Err(_) => return Err("Could not get mutex".to_string()),
+        };
+        // (self.exit_send.lock().unwrap().as_ref().unwrap())
+        //     .send(true)
+        //     .unwrap();
     }
 }
 
@@ -316,7 +333,10 @@ fn open_port(name: &str, baudrate: u32) -> Result<Box<dyn SerialPort>, String> {
 
 #[tauri::command]
 pub fn close_port(port: tauri::State<'_, SerialDriver>) {
-    port.close_port();
+    match port.close_port() {
+        Ok(_) => (),
+        Err(_) => (),
+    }
 }
 
 #[tauri::command]
@@ -340,7 +360,7 @@ pub fn pick_port(
     baudrate: u32,
 ) -> Result<String, String> {
     match serialport::new(&port_name, baudrate)
-        .timeout(Duration::from_millis(10))
+        .timeout(Duration::from_millis(50))
         .open()
     {
         Ok(_) => {

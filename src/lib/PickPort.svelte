@@ -19,6 +19,7 @@
 
 	async function getPort(port) {
 		errorMessage = "";
+		await invoke("close_port");
 		await invoke("pick_port", { portName: port, baudrate: baudrate })
 			.then(() => {
 				port_connected = true;
