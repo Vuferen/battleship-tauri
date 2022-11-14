@@ -162,6 +162,13 @@ pub async fn run_game(
     // Place own ships and wait for opponents ships
     let mut is_own_ships_placed = false;
     let mut is_opponents_ships_placed = true;
+    
+    // let ships = vec![false; 100];
+    let (py_tx, py_rx) = mpsc::channel();
+    let (py_send_exit, py_recv_exit) = mpsc::channel();
+    println!("Get_ships");
+    let py_handle = get_ships(py_tx, py_recv_exit);
+
     loop {
         // Check if game should restart
         if restart_recv.try_recv().is_ok() {
@@ -174,18 +181,26 @@ pub async fn run_game(
 
         let mut fire = false;
 
+        
+        let py_res = py_rx.try_recv();
+        if py_res.is_ok() {
+            my_board.ships = py_res.unwrap();
+        }
         // Get board from camera
-        let ships = get_ships();
+        // println!("Start python");
+        // println!("End python");
         // let mut ships = vec![false; 100];
         // ships[0] = true;
         // ships[1] = true;
         // ships[87] = true;
         // ships[88] = true;
         // ships[89] = true;
-        my_board.ships = ships.clone();
+        // my_board.ships = ships.clone();
 
         // Check for fire input from arduino
+        // println!("Start fire");
         let fire_res = port.arduino_try_get_fire();
+        // println!("End fire");
         // let fire_res = port.arduino_get_joystick_direction();
         if fire_res.is_some() {
             fire = fire_res.unwrap();
@@ -195,15 +210,25 @@ pub async fn run_game(
 
         // Check to confirm ship positions (change to listen for arduino fire)
         if (fire || rx.try_recv().is_ok()) && !is_own_ships_placed {
-            let res = port.arduino_send_board(ships);
-            if res.is_ok() {
-                let input = res.unwrap();
-                if input.tag == InputTag::Turn {
-                    is_my_turn = true;
+            // Check that all ships have been placed
+            let mut placed_ships = 0;
+            for ship in my_board.ships.clone() {
+                if ship {
+                    placed_ships += 1;
                 }
             }
-            is_own_ships_placed = true;
-            handle.emit_all("game-state", "WaitSetup").unwrap();
+
+            if placed_ships == total_ships {
+                let res = port.arduino_send_board(my_board.ships.clone());
+                if res.is_ok() {
+                    let input = res.unwrap();
+                    if input.tag == InputTag::Turn {
+                        is_my_turn = true;
+                    }
+                }
+                is_own_ships_placed = true;
+                handle.emit_all("game-state", "WaitSetup").unwrap();
+            }
         }
 
         let res = port.arduino_try_get_board();
@@ -232,6 +257,7 @@ pub async fn run_game(
 
         // thread::sleep(Duration::from_millis(10));
     }
+    py_send_exit.send(true).unwrap();
 
     if !restart {
         handle

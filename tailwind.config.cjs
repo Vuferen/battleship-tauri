@@ -6,6 +6,7 @@ const config = {
 			colors: {
 				main: "var(--main-color)",
 				"main-hover": "var(--main-color-hover)",
+				blue: "blue",
 			},
 		},
 	},

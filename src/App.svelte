@@ -49,6 +49,7 @@
 	let boardSize = 800;
 	let boardGap = 5;
 	let cursor = { x: 0, y: 0 };
+	let debugText = "";
 
 	createEmptyBoards();
 
@@ -126,9 +127,10 @@
 	}
 
 	async function restartGame() {
-		await emit("restart_game").then(gameState = GameState.PreSetup);
+		await emit("restart_game").then(() => gameState = GameState.PreSetup);
 		// await emit("restart_game").then(() => startGame());
 	}
+
 
 	async function moveCursor(direction: JoystickDirections) {
 		await invoke("move_cursor", { direction: direction });
@@ -239,7 +241,7 @@
 	{:else if gameState == GameState.Setup || gameState == GameState.WaitSetup}
 		<div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board my grid gap-2">
 			{#each myBoard as cell, i}
-				<div class="w-20 h-20 text-sm bg-slate-500 rounded-xl grid content-center shadow-md {getCellClasses(cell, cursorPosition)}">
+				<div class="w-20 h-20 text-sm bg-blue rounded-xl grid content-center shadow-md {getCellClasses(cell, cursorPosition)}">
 					{#if showDebug}
 						<p>{cell.index}</p>
 						<p>Ship: {cell.ship}</p>
@@ -253,7 +255,7 @@
 			{#if showMyBoard}
 				<div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board my grid gap-2">
 					{#each myBoard as cell, i}
-						<div class="w-20 h-20 text-sm bg-slate-500 rounded-xl grid content-center shadow-md {getCellClasses(cell, cursorPosition)}">
+						<div class="w-20 h-20 text-sm bg-blue rounded-xl grid content-center shadow-md {getCellClasses(cell, cursorPosition)}">
 							{#if showDebug}
 								<p>{cell.index}</p>
 								<p>Ship: {cell.ship}</p>

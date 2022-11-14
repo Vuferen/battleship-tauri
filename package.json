@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "build_py": "pyinstaller -F py/scanner.py --distpath src-tauri/bin/python --clean -n scanner-x86_64-pc-windows-msvc"
   },
   "dependencies": {
     "@tauri-apps/api": "^1.1.0",

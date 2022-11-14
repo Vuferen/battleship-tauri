@@ -35,11 +35,11 @@
 			.then(async (portNames: String[]) => {
 				ports = portNames;
 				// Auto select first port
-				if (ports.length > 0) {
-					// selected = ports[ports.length-1];
-					selected = ports[0];
-					getPort(selected);
-				}
+				// if (ports.length > 0) {
+				// 	// selected = ports[ports.length-1];
+				// 	selected = ports[0];
+				// 	getPort(selected);
+				// }
 			})
 			.catch((err) => console.log(err));
 	}
