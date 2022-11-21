@@ -161,7 +161,7 @@ pub async fn run_game(
 
     // Place own ships and wait for opponents ships
     let mut is_own_ships_placed = false;
-    let mut is_opponents_ships_placed = true;
+    let mut is_opponents_ships_placed = false;
     
     // let ships = vec![false; 100];
     let (py_tx, py_rx) = mpsc::channel();
@@ -177,13 +177,15 @@ pub async fn run_game(
             break;
         }
 
-        handle.emit_all("game-state", "Setup").unwrap();
+        if !is_own_ships_placed {
+            handle.emit_all("game-state", "Setup").unwrap();
+        }
 
         let mut fire = false;
 
         
         let py_res = py_rx.try_recv();
-        if py_res.is_ok() {
+        if py_res.is_ok() && !is_own_ships_placed {
             my_board.ships = py_res.unwrap();
         }
         // Get board from camera
@@ -235,8 +237,19 @@ pub async fn run_game(
         if res.is_ok() {
             let input = res.unwrap();
             if input.tag == InputTag::Board {
-                their_board.ships = input.ships;
-                is_opponents_ships_placed = true;
+                let mut num_ships = 0;
+                for ship in &input.ships {
+                    if *ship {
+                        num_ships += 1;
+                    }
+                }
+                if num_ships == total_ships {
+                    their_board.ships = input.ships;
+                    is_opponents_ships_placed = true;
+                }
+            } else if input.tag == InputTag::Reset {
+                restart = true;
+                break;
             }
         }
 
@@ -294,7 +307,7 @@ pub async fn run_game(
         if res.is_ok() {
             let input = res.unwrap();
             match input.tag {
-                InputTag::Reset => todo!(),
+                InputTag::Reset => restart = true,
                 InputTag::Board => (),
                 InputTag::Fire => fire = true,
                 InputTag::Joystick => {
@@ -326,7 +339,7 @@ pub async fn run_game(
                 };
             }
         }
-
+        // is_my_turn = true;
         // Do turn
         if is_my_turn {
             // Game has started, wait for fire command

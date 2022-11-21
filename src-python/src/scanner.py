@@ -126,7 +126,7 @@ def refresh(Board_Position, X_Offset, Y_Offset, pos, cap, corners, boat_offset):
     pts1 = np.float32(reorder(corners))
     #print("B: " + str(pointThree[0]))
     # print("1: " + pointOne.0 + pointOne.1, "2: " + pointTwo.0 + pointTwo.1, "3: " + pointThree.0 + pointThree.1, "4 " + pointFour.0 + pointFour.1)
-    pts2 = np.float32([[boat_x, boat_y], [width - boat_x, boat_y], [boat_x, height - boat_y], [width - boat_x, height - boat_y]])
+    pts2 = np.float32([[boat_x, boat_y], [width - boat_x, boat_y], [boat_x, height - boat_y - 30], [width - boat_x, height - boat_y - 30]])
 
     matrix = cv2.getPerspectiveTransform(pts1, pts2)
     imgOutput = cv2.warpPerspective(img, matrix, (width, height))
@@ -137,32 +137,47 @@ def refresh(Board_Position, X_Offset, Y_Offset, pos, cap, corners, boat_offset):
     blurWarped = cv2.medianBlur(grayWarped, 5)
     sharpen_kernelWarped = np.array([[-1, -1, -1], [-1, 9, -1], [-1,-1,-1]])
     sharpenWarped = cv2.filter2D(blurWarped, -1, sharpen_kernelWarped)
-    threshWarped = cv2.threshold(sharpenWarped, 100, 200, cv2.THRESH_BINARY_INV)[1]
+    threshWarped = cv2.threshold(sharpenWarped, 120, 200, cv2.THRESH_BINARY_INV)[1]
     kernelWarped = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
     closeWarped = cv2.morphologyEx(threshWarped, cv2.MORPH_CLOSE, kernel, iterations=2)
     cannyWarped = cv2.Canny(closeWarped, 1, 100)
     #ret, mask = cv2.threshold(canny, 100, 255, cv2.THRESH_BINARY)
 
-    contoursWarped, hierarchyWarped = cv2.findContours(closeWarped, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    # contoursWarped, hierarchyWarped = cv2.findContours(closeWarped, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    for index, cnt in enumerate(contoursWarped, start = 0):
-        area = cv2.contourArea(cnt)
-        if(area > 2000 and area < 20000):
-            imgWarped = cv2.drawContours(imgWarped, [cnt], -1, (0,255,255), 3)
-            x, y, w, h = cv2.boundingRect(cnt)
-            boatpos = int(x/44), int(y/44), int(round(w/50)), int(round(h/50))
+    # for index, cnt in enumerate(contoursWarped, start = 0):
+    #     area = cv2.contourArea(cnt)
+    #     if(area > 2000 and area < 20000):
+    #         imgWarped = cv2.drawContours(imgWarped, [cnt], -1, (0,255,255), 3)
+    #         x, y, w, h = cv2.boundingRect(cnt)
+    #         boatpos = int(x/44), int(y/44), int(round(w/44)), int(round(h/44))
 
-            setPos(pos, boatpos)
+    #         setPos(pos, boatpos)
+
+    for i in range(0,10):
+        for j in range(0,10):
+            if closeWarped[i*42+64, j*41+62] > 0:
+                cv2.circle(closeWarped, (j*41+62, i*42+64), 5, (0,0,0))
+                
+            else:
+                cv2.circle(closeWarped, (j*41+62, i*42+64), 5, (255,255,255))
+                pos[i*10+j] = 1
+
+    
 
 
     # cv2.imshow("Test", imgOutput)
-    # cv2.imshow("Warped", imgWarped)
+    # cv2.imshow("Warped", closeWarped)
 
 
     
     # if cv2.waitKey(1) == 13:
     
     # cv2.destroyAllWindows()
+    # for i in range(0,10):
+    #     for j in range (0,10):
+    #         print(pos[j+i*10], sep = ", ", end = " ")
+    #     print("")
     
     return pos
 
@@ -183,25 +198,25 @@ def refresh(Board_Position, X_Offset, Y_Offset, pos, cap, corners, boat_offset):
 def GetShips():
     Board_PositionGlobal = ([0, 0, 0, 0])
 
-    X_OffsetGlobal = -15
-    Y_OffsetGlobal = -9
+    X_OffsetGlobal = 0
+    Y_OffsetGlobal = 0
 
     capGlobal = cv2.VideoCapture(1)
 
     posGlobal = array.array('l', 100 * [0])
 
-    BoatOffset = [-15, -15]
+    BoatOffset = [0, 0]
 
     corners = [[0,0], [0,0], [0,0], [0,0]]
     # while True:
         # resetPos(posGlobal)
     print(refresh(Board_PositionGlobal, X_OffsetGlobal, Y_OffsetGlobal, posGlobal, capGlobal, corners, BoatOffset))
 
-# while True:
-#     resetPos(posGlobal)
-#     refresh(Board_PositionGlobal, X_OffsetGlobal, Y_OffsetGlobal, posGlobal, capGlobal, corners, BoatOffset)
-#     if cv2.waitKey(1) == 13:
-#         break
+    # while True:
+    #     resetPos(posGlobal)
+    #     refresh(Board_PositionGlobal, X_OffsetGlobal, Y_OffsetGlobal, posGlobal, capGlobal, corners, BoatOffset)
+    #     if cv2.waitKey(1) == 13:
+    #         break
 
 if __name__ == "__main__":
     GetShips()

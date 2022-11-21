@@ -23,6 +23,7 @@
 		Win,
 		Defeat,
 	}
+	let gameStates = ["PreSetup", "Setup", "WaitSetup", "YourTurn", "OtherTurn", "Win", "Defeat"];
 
 	interface Cell {
 		index: number;
@@ -64,6 +65,8 @@
 			}
 		});
 
+		boardSize = window.innerWidth * 0.45;
+
 		// const unlistenJoystick = await listen<Number>("joystick_direction", (event) => {
 		// 	moveCursor(event.payload as JoystickDirections);
 		// });
@@ -85,7 +88,25 @@
 			myBoard = myBoard;
 		});
 		await listen<String>("game-state", (event) => {
-			switch (event.payload) {
+			setGameState(event.payload);
+		});
+		await listen<number>("update-cursor-pos", (event) => {
+			cursorPosition = event.payload;
+		});
+		await listen<Cursor>("update-2d-cursor-pos", (event) => {
+			console.log(event.payload);
+			cursor = event.payload;
+		});
+
+		await invoke("set_cursor_pos", { newPos: cursorPosition });
+		await invoke("set_cols", { newCols: cols });
+		await invoke("set_rows", { newRows: rows });
+	});
+
+	function setGameState(state) {
+		switch (state) {
+				case "PreSetup":
+					gameState = GameState.PreSetup;
 				case "Setup":
 					gameState = GameState.Setup;
 					break;
@@ -106,20 +127,9 @@
 					break;
 				default:
 					break;
-			}
-		});
-		await listen<number>("update-cursor-pos", (event) => {
-			cursorPosition = event.payload;
-		});
-		await listen<Cursor>("update-2d-cursor-pos", (event) => {
-			console.log(event.payload);
-			cursor = event.payload;
-		});
-
-		await invoke("set_cursor_pos", { newPos: cursorPosition });
-		await invoke("set_cols", { newCols: cols });
-		await invoke("set_rows", { newRows: rows });
-	});
+		}
+	}
+	
 
 	async function startGame() {
 		createEmptyBoards();
@@ -170,7 +180,7 @@
 			case GameState.Setup:
 				return "Press fire to confirm ship positions";
 			case GameState.WaitSetup:
-				return "Please wait for the other player to place their ships";
+				return "Wait for the other player to place their ships";
 			case GameState.YourTurn:
 				return "Your turn";
 			case GameState.OtherTurn:
@@ -212,6 +222,14 @@
 				<input type="range" name="" id="" min="400" max="1000" bind:value={boardSize} />
 				{boardSize}
 			</label>
+			<!-- <label for="gamestate" class="flex flex-col text-left">
+				Gamestate:
+				<select bind:value={gameState} name="gamestate" class="h-9 p-2 rounded-md">
+					{#each gameStates as gs}
+						<option value={setGameState(gs)}>{gs}</option>
+					{/each}
+				</select>
+			</label> -->
 			<!-- <label class="w-fit mt-2 mb-2">
 				<button on:click={confirmShips}>Confirm ship positions</button>
 				
@@ -232,60 +250,62 @@
 
 	<h1 style="max-width: {boardSize};" class="mb-5">{getGameStateText(gameState, port_connected)}</h1>
 
-	{#if gameState == GameState.PreSetup}
-		{#if !port_connected}
-			<PickPort bind:port_connected />
-		{:else}
-			<button on:click={startGame}>Start game</button>
-		{/if}
-	{:else if gameState == GameState.Setup || gameState == GameState.WaitSetup}
-		<div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board my grid gap-2">
-			{#each myBoard as cell, i}
-				<div class="w-20 h-20 text-sm bg-blue rounded-xl grid content-center shadow-md {getCellClasses(cell, cursorPosition)}">
-					{#if showDebug}
-						<p>{cell.index}</p>
-						<p>Ship: {cell.ship}</p>
-						<p>Hit: {cell.hit}</p>
-					{/if}
-				</div>
-			{/each}
-		</div>
-	{:else}
-		<div class="game w-fit">
-			{#if showMyBoard}
-				<div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board my grid gap-2">
-					{#each myBoard as cell, i}
-						<div class="w-20 h-20 text-sm bg-blue rounded-xl grid content-center shadow-md {getCellClasses(cell, cursorPosition)}">
-							{#if showDebug}
-								<p>{cell.index}</p>
-								<p>Ship: {cell.ship}</p>
-								<p>Hit: {cell.hit}</p>
-							{/if}
-						</div>
-					{/each}
-				</div>
+	<div class="grid place-content-center">
+		{#if gameState == GameState.PreSetup}
+			{#if !port_connected}
+				<PickPort bind:port_connected />
+			{:else}
+				<button on:click={startGame}>Start game</button>
 			{/if}
-
-			<div style="transform: translate({0}px, {0}px); width: {boardSize}px; height: {boardSize}px;" class=" relative radar">
-				{#each theirBoard as cell, i}
-					<CircleSector
-						width={(0.5 * boardSize) / rows - boardGap}
-						color={getCellColor(cell)}
-						hoverColor={getHoverColor(cell)}
-						sections={cols}
-						radius={((0.5 * boardSize) / rows) * (1 + Math.floor(i / cols))}
-						n={i % cols}
-						letter={Math.floor(i / cols)}
-						gap={boardGap}
-						center={boardSize / 2}
-						selected={cursorPosition == i}
-					/>
+		{:else if gameState == GameState.Setup || gameState == GameState.WaitSetup}
+			<div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board my grid gap-2 w-fit">
+				{#each myBoard as cell, i}
+					<div style="width: {window.innerHeight * 0.07}px; height: {window.innerHeight * 0.07}px;" class="text-sm bg-blue rounded-xl grid content-center shadow-md {getCellClasses(cell, cursorPosition)}">
+						{#if showDebug}
+							<p>{cell.index}</p>
+							<p>Ship: {cell.ship}</p>
+							<p>Hit: {cell.hit}</p>
+						{/if}
+					</div>
 				{/each}
-				<div class="z-20"><RadarAnimation size={boardSize} /></div>
-				<div style="top: {boardSize - (cursor.y + 1) * 0.5 * boardSize}px; left: {(cursor.x + 1) * 0.5 * boardSize}px;" class="cursor z-50" />
 			</div>
-		</div>
-	{/if}
+		{:else}
+			<div class="game w-fit">
+				{#if showMyBoard}
+					<div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board my grid gap-2">
+						{#each myBoard as cell, i}
+							<div class="w-20 h-20 text-sm bg-blue rounded-xl grid content-center shadow-md {getCellClasses(cell, cursorPosition)}">
+								{#if showDebug}
+									<p>{cell.index}</p>
+									<p>Ship: {cell.ship}</p>
+									<p>Hit: {cell.hit}</p>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				{/if}
+
+				<div style="transform: translate({0}px, {0}px); width: {boardSize}px; height: {boardSize}px;" class=" relative radar">
+					{#each theirBoard as cell, i}
+						<CircleSector
+							width={(0.5 * boardSize) / rows - boardGap}
+							color={getCellColor(cell)}
+							hoverColor={getHoverColor(cell)}
+							sections={cols}
+							radius={((0.5 * boardSize) / rows) * (1 + Math.floor(i / cols))}
+							n={i % cols}
+							letter={Math.floor(i / cols)}
+							gap={boardGap}
+							center={boardSize / 2}
+							selected={cursorPosition == i}
+						/>
+					{/each}
+					<div class="z-20"><RadarAnimation size={boardSize} /></div>
+					<div style="top: {boardSize - (cursor.y + 1) * 0.5 * boardSize}px; left: {(cursor.x + 1) * 0.5 * boardSize}px;" class="cursor z-50" />
+				</div>
+			</div>
+		{/if}
+	</div>
 </main>
 
 <style>

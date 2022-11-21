@@ -6,6 +6,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Instant;
 use std::{str, thread};
 use std::{sync::Mutex, time::Duration};
+use bitvec::{BitArr, bitarr};
 
 #[derive(Serialize, Deserialize)]
 struct Board {
@@ -72,7 +73,7 @@ impl SerialDriver {
         // let board = Board{board: ships};
         // let json = json!(board);
         let input;
-        match self.write("1\n") {
+        match self.write("6\n") {
             Ok(text) => input = text,
             Err(err) => return Err(format!("Could not write: {}", err)),
         };
@@ -80,13 +81,35 @@ impl SerialDriver {
     }
 
     pub fn arduino_send_board(&self, ships: Vec<bool>) -> Result<Input, String> {
-        let board = Board { board: ships };
-        let json = json!(board).to_string();
+        // encode:
+        let mut num: u128 = 0;
+        for (i,ship) in ships.iter().enumerate() {
+            if *ship {
+                num += (2 as u128).pow(i as u32) as u128;
+            }
+        }
+        // println!("my: {num}");
+
         let input;
-        match self.write(("1".to_owned() + json.as_str() + "\n").as_str()) {
+        // let bit_ships = bitarr![0; 100];
+        // for (i,ship) in ships.iter().enumerate() {
+        //     bit_ships[i] = *ship;
+        // }
+        // let temp = bit_ships.get(0..100).unwrap().to_string();
+
+        match self.write(("1".to_owned() + num.to_string().as_str() + "\n").as_str()) {
             Ok(text) => input = text,
             Err(err) => return Err(format!("Could not write: {}", err)),
         };
+
+        // Old json version
+        // let board = Board { board: ships };
+        // let json = json!(board).to_string();
+        // let input;
+        // match self.write(("1".to_owned() + json.as_str() + "\n").as_str()) {
+        //     Ok(text) => input = text,
+        //     Err(err) => return Err(format!("Could not write: {}", err)),
+        // };
         return SerialDriver::handle_response(input);
     }
 
@@ -171,15 +194,29 @@ impl SerialDriver {
             }),
             // Board
             b'1' => {
-                let trimmed_input: &str = &input[1..input.len()];
-                let parsed: Board = match serde_json::from_str(&trimmed_input) {
-                    Ok(res) => res,
-                    Err(err) => return Err(format!("Could not parse json: {}", err)),
-                };
+                // println!("{input}");
+                let trimmed_input: &str = &input[1..input.len()].trim();
+                // println!("{trimmed_input}");
+                let num = trimmed_input.parse::<u128>().unwrap_or(0);
+                // println!("{num}");
+
+                let mut their_ships = vec![false;100];
+                let bits = format!("{num:b}");
+                for (i, ch) in bits.chars().rev().enumerate() {
+                    their_ships[i] = ch == '1';
+                }
+                // for ship in their_ships.clone() {
+                //     print!("{ship}, ");
+                // }
+
+                // let parsed: Board = match serde_json::from_str(&trimmed_input) {
+                //     Ok(res) => res,
+                //     Err(err) => return Err(format!("Could not parse json: {}", err)),
+                // };
 
                 Ok(Input {
                     tag: InputTag::Board,
-                    ships: parsed.board,
+                    ships: their_ships,
                     joystick_direction: JoystickDirection { x: 0, y: 0 },
                     turn: None,
                 })
@@ -198,16 +235,28 @@ impl SerialDriver {
                     .split(",")
                     .filter_map(|s| s.parse::<i32>().ok())
                     .collect::<Vec<_>>();
-
-                Ok(Input {
-                    tag: InputTag::Joystick,
-                    ships: vec![false; 0],
-                    joystick_direction: JoystickDirection {
-                        x: vec[0],
-                        y: vec[1],
-                    },
-                    turn: Some(vec[2] == 1),
-                })
+                
+                if vec.len() > 2 {
+                    Ok(Input {
+                        tag: InputTag::Joystick,
+                        ships: vec![false; 0],
+                        joystick_direction: JoystickDirection {
+                            x: vec[0],
+                            y: vec[1],
+                        },
+                        turn: Some(vec[2] == 1),
+                    })
+                } else {
+                    Ok(Input {
+                        tag: InputTag::Joystick,
+                        ships: vec![false; 0],
+                        joystick_direction: JoystickDirection {
+                            x: 0,
+                            y: 0,
+                        },
+                        turn: Some(false),
+                    })
+                }
             }
             // Defeat
             b'4' => Ok(Input {

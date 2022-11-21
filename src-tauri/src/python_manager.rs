@@ -17,7 +17,8 @@ pub fn get_ships(py_tx: Sender<Vec<bool>>, exit: Receiver<bool>) -> JoinHandle<(
             let start_index = line.find('[');
             let end_index = line.find(']');
             if start_index.is_some() && end_index.is_some() {
-                let arr_string = line[start_index.unwrap()..end_index.unwrap()].to_string();
+                let arr_string = line[start_index.unwrap()+1..end_index.unwrap()].to_string();
+                // println!("{}", arr_string);
                 let cells = arr_string.split(", ").filter_map(|s| s.parse::<i32>().ok())
                 .collect::<Vec<_>>();
                 
