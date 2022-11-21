@@ -1,12 +1,10 @@
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use serialport::{FlowControl, SerialPort};
 use std::io::{BufRead, BufReader};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Instant;
 use std::{str, thread};
 use std::{sync::Mutex, time::Duration};
-use bitvec::{BitArr, bitarr};
 
 #[derive(Serialize, Deserialize)]
 struct Board {

@@ -1,7 +1,7 @@
-use std::{sync::mpsc::{Sender, Receiver, self}, thread::{self, JoinHandle}, future};
-use tauri::async_runtime::channel;
+use std::{sync::mpsc::{Sender, Receiver}, thread::{self, JoinHandle}};
+// use tauri::async_runtime::channel;
 
-use tauri::api::process::{Command, CommandEvent};
+use tauri::api::process::{Command};
 
 pub fn get_ships(py_tx: Sender<Vec<bool>>, exit: Receiver<bool>) -> JoinHandle<()> {
 

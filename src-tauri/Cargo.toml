@@ -14,12 +14,12 @@ rust-version = "1.57"
 tauri-build = { version = "1.1", features = [] }
 
 [dependencies]
-serde_json = "1.0"
+# serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "1.1", features = ["api-all", "process-command-api"] }
 serialport = "4.0.1"
 rand = "0.8.5"
-bitvec = "1.0.1"
+# bitvec = "1.0.1"
 # pyo3 = { version = "0.17.3", features = ["auto-initialize", "extension-module"] }
 # wasmer_runtime = "0.17.1"
 

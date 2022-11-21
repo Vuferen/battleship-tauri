@@ -8,7 +8,7 @@ pub struct Vector2 {
 
 impl Vector2 {
 	fn length(self) -> f32 {
-		return ((self.x.powf(2.0) + self.y.powf(2.0)).sqrt());
+		return (self.x.powf(2.0) + self.y.powf(2.0)).sqrt();
 	}
 	fn angle(self) -> f32 {
 		if self.x == 0.0 && self.y == 0.0 {

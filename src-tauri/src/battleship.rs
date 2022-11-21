@@ -1,7 +1,6 @@
 use rand::Rng;
 use serde::Deserialize;
 use std::{
-    cmp::max,
     sync::{mpsc, Mutex},
     thread,
     time::{Duration, Instant},
@@ -167,7 +166,7 @@ pub async fn run_game(
     let (py_tx, py_rx) = mpsc::channel();
     let (py_send_exit, py_recv_exit) = mpsc::channel();
     println!("Get_ships");
-    let py_handle = get_ships(py_tx, py_recv_exit);
+    get_ships(py_tx, py_recv_exit);
 
     loop {
         // Check if game should restart
@@ -288,7 +287,7 @@ pub async fn run_game(
         // Check if game should restart
         if restart_recv.try_recv().is_ok() {
             println!("Restarting!");
-            restart = true;
+            // restart = true;
             break;
         }
 
@@ -462,7 +461,7 @@ fn move_cursor_by_dir(
     rows: usize,
     joystick_direction: JoystickDirection,
 ) {
-    let cursor_pos = cursor_pos_state.0.lock().unwrap().unwrap();
+    // let cursor_pos = cursor_pos_state.0.lock().unwrap().unwrap();
     let mut dir = Vector2 {
         x: joystick_direction.x as f32,
         y: joystick_direction.y as f32,
