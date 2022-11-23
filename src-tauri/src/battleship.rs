@@ -232,10 +232,12 @@ pub async fn run_game(
             }
         }
 
+        println!("Trying to get board");
         let res = port.arduino_try_get_board();
         if res.is_ok() {
             let input = res.unwrap();
             if input.tag == InputTag::Board {
+                println!("Got board");
                 let mut num_ships = 0;
                 for ship in &input.ships {
                     if *ship {
@@ -243,10 +245,14 @@ pub async fn run_game(
                     }
                 }
                 if num_ships == total_ships {
+                    println!("All ships placed");
                     their_board.ships = input.ships;
                     is_opponents_ships_placed = true;
+                } else {
+                    println!("Missing ships");
                 }
             } else if input.tag == InputTag::Reset {
+                println!("Got reset");
                 restart = true;
                 break;
             }

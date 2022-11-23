@@ -5,6 +5,8 @@
 	import PickPort from "./lib/PickPort.svelte";
 	import CircleSector from "./lib/CircleSector.svelte";
 	import RadarAnimation from "./lib/RadarAnimation.svelte";
+	import { slide } from "svelte/transition";
+	import { appWindow } from '@tauri-apps/api/window';
 	// import { emit } from "@tauri-apps/api/helpers/event";
 
 	enum JoystickDirections {
@@ -65,7 +67,7 @@
 			}
 		});
 
-		boardSize = window.innerWidth * 0.45;
+		boardSize = window.innerWidth * 0.45	;
 
 		// const unlistenJoystick = await listen<Number>("joystick_direction", (event) => {
 		// 	moveCursor(event.payload as JoystickDirections);
@@ -202,6 +204,7 @@
 	<div class="fixed top-5 right-5 flex flex-col gap-2 text-left z-[100]">
 		<button on:click={restartGame} class="w-min">Restart</button>
 		<button on:click={toggleDebug} class="w-min">Debug</button>
+		<button on:click={() => appWindow.close()} class="w-min">Close</button>
 	</div>
 	{#if debug}
 		<div class=" fixed top-5 left-5 flex flex-col text-left z-[100]">
@@ -247,8 +250,10 @@
 			</div>
 		</div>
 	{/if}
+	
+	
 
-	<h1 style="max-width: {boardSize};" class="mb-5">{getGameStateText(gameState, port_connected)}</h1>
+	<h1 style="max-width: {boardSize};" class="mb-5" transition:slide>{getGameStateText(gameState, port_connected)}</h1>
 
 	<div class="grid place-content-center">
 		{#if gameState == GameState.PreSetup}
@@ -272,27 +277,27 @@
 		{:else}
 			<div class="game w-fit">
 				{#if showMyBoard}
-					<div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board my grid gap-2">
-						{#each myBoard as cell, i}
+				<div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board my grid gap-2">
+					{#each myBoard as cell, i}
 							<div class="w-20 h-20 text-sm bg-blue rounded-xl grid content-center shadow-md {getCellClasses(cell, cursorPosition)}">
 								{#if showDebug}
-									<p>{cell.index}</p>
-									<p>Ship: {cell.ship}</p>
-									<p>Hit: {cell.hit}</p>
+								<p>{cell.index}</p>
+								<p>Ship: {cell.ship}</p>
+								<p>Hit: {cell.hit}</p>
 								{/if}
 							</div>
 						{/each}
 					</div>
 				{/if}
-
+				
 				<div style="transform: translate({0}px, {0}px); width: {boardSize}px; height: {boardSize}px;" class=" relative radar">
 					{#each theirBoard as cell, i}
 						<CircleSector
-							width={(0.5 * boardSize) / rows - boardGap}
+							width={(0.5 * boardSize) / (rows+1) - boardGap}
 							color={getCellColor(cell)}
 							hoverColor={getHoverColor(cell)}
 							sections={cols}
-							radius={((0.5 * boardSize) / rows) * (1 + Math.floor(i / cols))}
+							radius={((0.5 * boardSize) / (rows+1)) * (2 + Math.floor(i / cols))}
 							n={i % cols}
 							letter={Math.floor(i / cols)}
 							gap={boardGap}

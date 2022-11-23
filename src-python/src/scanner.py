@@ -78,11 +78,11 @@ def refresh(Board_Position, X_Offset, Y_Offset, pos, cap, corners, boat_offset):
     imgOutput = img
     
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    _, binary = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
-    blur = cv2.medianBlur(gray, 5)
+    _, binary = cv2.threshold(gray, 170, 255, cv2.THRESH_BINARY_INV)
+    blur = cv2.medianBlur(gray, 15)
     sharpen_kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1,-1,-1]])
     sharpen = cv2.filter2D(blur, -1, sharpen_kernel)
-    thresh = cv2.threshold(sharpen, 100, 200, cv2.THRESH_BINARY_INV)[1]
+    thresh = cv2.threshold(sharpen, 130, 200, cv2.THRESH_BINARY_INV)[1]
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
     close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=2)
     
@@ -124,9 +124,13 @@ def refresh(Board_Position, X_Offset, Y_Offset, pos, cap, corners, boat_offset):
     corners[0] = corners[1]
     corners[1] = temp
     pts1 = np.float32(reorder(corners))
+    # print(corners)
+    # [[137, 92], [509, 91], [44, 479], [602, 479]]
+    boardBorderOffset = 0
+    # print(boardBorderOffset)
     #print("B: " + str(pointThree[0]))
     # print("1: " + pointOne.0 + pointOne.1, "2: " + pointTwo.0 + pointTwo.1, "3: " + pointThree.0 + pointThree.1, "4 " + pointFour.0 + pointFour.1)
-    pts2 = np.float32([[boat_x, boat_y], [width - boat_x, boat_y], [boat_x, height - boat_y - 30], [width - boat_x, height - boat_y - 30]])
+    pts2 = np.float32([[boat_x, boat_y], [width - boat_x, boat_y], [boat_x, height - boat_y - boardBorderOffset], [width - boat_x, height - boat_y - boardBorderOffset]])
 
     matrix = cv2.getPerspectiveTransform(pts1, pts2)
     imgOutput = cv2.warpPerspective(img, matrix, (width, height))
@@ -134,10 +138,10 @@ def refresh(Board_Position, X_Offset, Y_Offset, pos, cap, corners, boat_offset):
     imgWarped = imgOutput
     grayWarped = cv2.cvtColor(imgWarped, cv2.COLOR_BGR2GRAY)
     _, binaryWarped = cv2.threshold(grayWarped, 150, 255, cv2.THRESH_BINARY_INV)
-    blurWarped = cv2.medianBlur(grayWarped, 5)
+    blurWarped = cv2.medianBlur(grayWarped, 15)
     sharpen_kernelWarped = np.array([[-1, -1, -1], [-1, 9, -1], [-1,-1,-1]])
     sharpenWarped = cv2.filter2D(blurWarped, -1, sharpen_kernelWarped)
-    threshWarped = cv2.threshold(sharpenWarped, 120, 200, cv2.THRESH_BINARY_INV)[1]
+    threshWarped = cv2.threshold(sharpenWarped, 130, 200, cv2.THRESH_BINARY_INV)[1]
     kernelWarped = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
     closeWarped = cv2.morphologyEx(threshWarped, cv2.MORPH_CLOSE, kernel, iterations=2)
     cannyWarped = cv2.Canny(closeWarped, 1, 100)

@@ -22,7 +22,7 @@ impl Vector2 {
 		}
 	}
 	fn row(self, rows: usize) -> usize {
-		return ((self.length()) * rows as f32).floor() as usize;
+		return (((self.length()) * (rows+1) as f32).floor() - 1.0).max(0.0) as usize;
 	}
 	fn col(self, cols: usize) -> usize {
 		return ((self.angle()/(2.0*PI))*cols as f32).floor() as usize;
