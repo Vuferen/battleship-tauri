@@ -41,8 +41,15 @@ pub struct SerialDriver {
 }
 
 impl SerialDriver {
+    pub fn arduino_end(&self) -> Result<String, String> {
+        match self.write("5\n") {
+            Ok(text) => return Ok(text),
+            Err(err) => return Err(format!("Could not write: {}", err)),
+        };
+    }
+
     pub fn arduino_reset(&self) -> Result<String, String> {
-        match self.write("0\n") {
+        match self.write("7\n") {
             Ok(text) => return Ok(text),
             Err(err) => return Err(format!("Could not write: {}", err)),
         };

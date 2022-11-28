@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::{Rng};
 use serde::Deserialize;
 use std::{
     sync::{mpsc, Mutex},
@@ -6,6 +6,10 @@ use std::{
     time::{Duration, Instant},
 };
 use tauri::Manager;
+// use soloud::*;
+// use std::fs::File;
+// use std::io::BufReader;
+// use rodio::{Decoder, OutputStream, source::Source, Sink};
 
 use crate::{serialport_manager::InputTag, vector2::*};
 use crate::python_manager::get_ships;
@@ -44,6 +48,32 @@ pub async fn run_game(
     let cols = cols_state.0.lock().unwrap().unwrap().clone();
     // let guard = port.0.unwrap().lock().unwrap();
     port.run_port();
+
+    // Sound output setup
+    // let sl = Soloud::default().unwrap();
+    // let mut missile_sounds = [audio::Wav::default(),audio::Wav::default(),audio::Wav::default()];
+    // match missile_sounds[0].load(&std::path::Path::new("../public/sound/missil1.mp3")) {
+    //     Ok(_) => (),
+    //     Err(err) => println!("err: {}", err),
+    // };
+    // missile_sounds[1].load(&std::path::Path::new("../public/sound/missil2.mp3")).unwrap();
+    // missile_sounds[2].load(&std::path::Path::new("../public/sound/missil3.mp3")).unwrap();
+    // let mut hit_sounds = [audio::Wav::default(),audio::Wav::default(),audio::Wav::default()];
+    // hit_sounds[0].load(&std::path::Path::new("../public/sound/hit1.mp3")).unwrap();
+    // hit_sounds[1].load(&std::path::Path::new("../public/sound/hit2.mp3")).unwrap();
+    // hit_sounds[2].load(&std::path::Path::new("../public/sound/hit3.mp3")).unwrap();
+    // let mut miss_sounds = [audio::Wav::default(),audio::Wav::default(),audio::Wav::default()];
+    // miss_sounds[0].load(&std::path::Path::new("../public/sound/miss1.mp3")).unwrap();
+    // miss_sounds[1].load(&std::path::Path::new("../public/sound/miss2.mp3")).unwrap();
+    // miss_sounds[2].load(&std::path::Path::new("../public/sound/miss3.mp3")).unwrap();
+
+    // let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    // let file = BufReader::new(File::open("../public/sound/missil2.mp3").unwrap());
+    // let source = Decoder::new(file).unwrap();
+    // let sink = Sink::try_new(&stream_handle).unwrap();
+    // sink.append(source);
+    // sink.sleep_until_end();
+
 
     let mut is_my_turn = false;
 
@@ -232,7 +262,7 @@ pub async fn run_game(
             }
         }
 
-        println!("Trying to get board");
+        // println!("Trying to get board");
         let res = port.arduino_try_get_board();
         if res.is_ok() {
             let input = res.unwrap();
@@ -287,6 +317,7 @@ pub async fn run_game(
     }
 
     // Game loop
+    let mut arduino_end = false;
     let mut now = Instant::now();
     let mut cursor = Vector2 { x: 0.0, y: 0.0 };
     while !restart {
@@ -329,6 +360,7 @@ pub async fn run_game(
                     }
                 }
                 InputTag::End => {
+                    arduino_end = true;
                     handle.emit_all("game-state", "Defeat").unwrap();
                     break;
                 }
@@ -355,12 +387,14 @@ pub async fn run_game(
                 if their_board.ships[cursor_pos] {
                     // Enemy ship was hit
                     their_board.ships_left -= 1;
-                    port.arduino_hit(cursor_pos).unwrap();
                     handle.emit_all("enemy-board-hit", cursor_pos).unwrap();
+                    thread::sleep(Duration::from_millis(1750));
+                    port.arduino_hit(cursor_pos).unwrap();
                 } else {
                     // Miss
-                    port.arduino_miss(cursor_pos).unwrap();
                     handle.emit_all("enemy-board-miss", cursor_pos).unwrap();
+                    thread::sleep(Duration::from_millis(1750));
+                    port.arduino_miss(cursor_pos).unwrap();
                 }
                 is_my_turn = false;
                 handle.emit_all("game-state", "OtherTurn").unwrap();
@@ -380,7 +414,27 @@ pub async fn run_game(
         }
     }
 
-    port.arduino_reset().unwrap();
+    if restart {
+        port.arduino_reset().unwrap();
+    } else {
+        // Avoid send end back and forth
+        if !arduino_end {
+            port.arduino_end().unwrap();
+        }
+        // Wait for fire button to be pressed before restarting
+        loop {
+            let mut fire = false;
+            let fire_res = port.arduino_try_get_fire();
+            if fire_res.is_some() {
+                fire = fire_res.unwrap();
+            }
+            if (fire || rx.try_recv().is_ok())  {
+                break;
+            }   
+        }
+        port.arduino_reset().unwrap();
+    }
+
     match port.close_port() {
         Ok(_) => (),
         Err(_) => (),
