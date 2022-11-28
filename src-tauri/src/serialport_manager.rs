@@ -133,15 +133,15 @@ impl SerialDriver {
         // }
     }
 
-    pub fn arduino_miss(&self) -> Result<String, String> {
-        match self.write("4\n") {
+    pub fn arduino_miss(&self, cell: usize) -> Result<String, String> {
+        match self.write(format!("4{}\n", 99-cell).as_str()) {
             Ok(text) => return Ok(text),
             Err(err) => return Err(format!("Could not write: {}", err)),
         };
     }
 
     pub fn arduino_hit(&self, cell: usize) -> Result<String, String> {
-        match self.write(format!("3{}\n", cell).as_str()) {
+        match self.write(format!("3{}\n", 99-cell).as_str()) {
             Ok(text) => return Ok(text),
             Err(err) => return Err(format!("Could not write: {}", err)),
         };

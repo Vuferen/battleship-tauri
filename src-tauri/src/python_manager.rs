@@ -26,6 +26,7 @@ pub fn get_ships(py_tx: Sender<Vec<bool>>, exit: Receiver<bool>) -> JoinHandle<(
                 for (i, cell) in cells.iter().enumerate() {
                     ships[i] = *cell == 1;
                 }
+                ships.reverse(); // 180deg rotation
                 py_tx.send(ships).unwrap();
             }
 

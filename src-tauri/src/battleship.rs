@@ -359,7 +359,7 @@ pub async fn run_game(
                     handle.emit_all("enemy-board-hit", cursor_pos).unwrap();
                 } else {
                     // Miss
-                    port.arduino_miss().unwrap();
+                    port.arduino_miss(cursor_pos).unwrap();
                     handle.emit_all("enemy-board-miss", cursor_pos).unwrap();
                 }
                 is_my_turn = false;

@@ -5,9 +5,15 @@
 	import PickPort from "./lib/PickPort.svelte";
 	import CircleSector from "./lib/CircleSector.svelte";
 	import RadarAnimation from "./lib/RadarAnimation.svelte";
+	import Cursor from "./lib/Cursor.svelte";
 	import { slide } from "svelte/transition";
 	import { appWindow } from '@tauri-apps/api/window';
 	// import { emit } from "@tauri-apps/api/helpers/event";
+
+	const missileAudio = [new Audio("sound/missil1.mp3"), new Audio("sound/missil2.mp3"), new Audio("sound/missil3.mp3")];
+	const missAudio = [new Audio("sound/miss1.mp3"), new Audio("sound/miss2.mp3"), new Audio("sound/miss3.mp3")];
+	const hitAudio = [new Audio("sound/hit1.mp3"), new Audio("sound/hit2.mp3"), new Audio("sound/hit3.mp3")];
+	let isAudioPlaying = false;
 
 	enum JoystickDirections {
 		Up,
@@ -75,14 +81,34 @@
 
 		await listen<number>("enemy-board-hit", (event) => {
 			console.log("enemy-board-hit");
-			theirBoard[event.payload].hit = true;
-			theirBoard[event.payload].ship = true;
-			theirBoard = theirBoard;
+			let missile = randElem(missileAudio);
+			missile.addEventListener("ended", () => {
+				let hitSound = randElem(hitAudio);
+				hitSound.addEventListener("ended", () => {
+					isAudioPlaying = false;
+				}, { once: true });
+				hitSound.play();
+				theirBoard[event.payload].hit = true;
+				theirBoard[event.payload].ship = true;
+				theirBoard = theirBoard;
+			}, { once: true });
+			isAudioPlaying = true;
+			missile.play();
 		});
 		await listen<number>("enemy-board-miss", (event) => {
 			console.log("enemy-board-miss");
-			theirBoard[event.payload].hit = true;
-			theirBoard = theirBoard;
+			let missile = randElem(missileAudio);
+			missile.addEventListener("ended", () => {
+				let missSound = randElem(missAudio);
+				missSound.addEventListener("ended", () => {
+					isAudioPlaying = false;
+				}, { once: true });
+				missSound.play();
+				theirBoard[event.payload].hit = true;
+				theirBoard = theirBoard;
+			}, { once: true });
+			isAudioPlaying = true;
+			missile.play();
 		});
 		await listen<number>("my-board-hit", (event) => {
 			console.log("my-board-hit");
@@ -163,6 +189,10 @@
 		emit("fire");
 	}
 
+	function randElem(arr) {
+		return arr[Math.floor(Math.random() * arr.length)]
+	}
+
 	function getCellColor(cell) {
 		return cell.ship && cell.hit ? "#dc143c" : cell.hit ? "blue" : "black";
 	}
@@ -186,7 +216,7 @@
 			case GameState.YourTurn:
 				return "Your turn";
 			case GameState.OtherTurn:
-				return "Wait for enemy turn";
+				return "";
 			case GameState.Win:
 				return "Congratulations you won!";
 			case GameState.Defeat:
@@ -253,9 +283,15 @@
 	
 	
 
-	<h1 style="max-width: {boardSize};" class="mb-5" transition:slide>{getGameStateText(gameState, port_connected)}</h1>
+	<h1 style="max-width: {boardSize}; height: 57px;" class="mb-5" transition:slide>{getGameStateText(gameState, port_connected)}</h1>
 
-	<div class="grid place-content-center">
+	{#if gameState == GameState.OtherTurn && !isAudioPlaying}
+		<div style="background-color: rgba(0,0,0,0.5);" class="wait-turn-popup fixed w-full h-full grid items-center top-0 left-0 z-[80]">
+			<h1>Wait for enemy turn</h1>
+		</div>
+	{/if}
+
+	<div style="filter: blur({(gameState == GameState.OtherTurn && !isAudioPlaying) ? 5 : 0}px);" class="grid place-content-center">
 		{#if gameState == GameState.PreSetup}
 			{#if !port_connected}
 				<PickPort bind:port_connected />
@@ -306,7 +342,8 @@
 						/>
 					{/each}
 					<div class="z-20"><RadarAnimation size={boardSize} /></div>
-					<div style="top: {boardSize - (cursor.y + 1) * 0.5 * boardSize}px; left: {(cursor.x + 1) * 0.5 * boardSize}px;" class="cursor z-50" />
+					<!-- <div style="top: {boardSize - (cursor.y + 1) * 0.5 * boardSize}px; left: {(cursor.x + 1) * 0.5 * boardSize}px;" class="cursor z-50" /> -->
+					<Cursor bind:boardSize bind:x={cursor.x} bind:y={cursor.y}></Cursor>
 				</div>
 			</div>
 		{/if}
@@ -331,14 +368,14 @@
 	.their .hit-cell {
 		background-color: rgb(63, 65, 68);
 	}
-	.cursor {
+	/* .cursor {
 		position: absolute;
 		background-color: white;
 		width: 10px;
 		height: 10px;
 		border-radius: 100%;
 		transform: translate(-5px, -5px);
-	}
+	} */
 	.radar {
 		background-color: #05fb11;
 		border-radius: 50%;
