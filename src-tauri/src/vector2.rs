@@ -22,7 +22,7 @@ impl Vector2 {
 		}
 	}
 	fn row(self, rows: usize) -> usize {
-		return (((self.length()) * (rows+1) as f32).floor() - 1.0).max(0.0) as usize;
+		return (((self.length().min(0.99)) * (rows+1) as f32).floor() - 1.0).max(0.0) as usize;
 	}
 	fn col(self, cols: usize) -> usize {
 		return ((self.angle()/(2.0*PI))*cols as f32).floor() as usize;
@@ -31,7 +31,7 @@ impl Vector2 {
 		return self.col(cols) + self.row(rows) * cols;
 	}
 	pub fn normalize(mut self) -> Vector2{
-		if self.x != 0.0 && self.y != 0.0 {
+		if !(self.x == 0.0 && self.y == 0.0) {
 			let len = self.length();
 			self.x = self.x / len;
 			self.y = self.y / len;

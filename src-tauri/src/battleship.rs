@@ -17,17 +17,25 @@ use crate::serialport_manager::{JoystickDirection, SerialDriver};
 pub struct CursorPos(pub Mutex<Option<usize>>);
 #[tauri::command]
 pub fn set_cursor_pos(cursor_pos: tauri::State<'_, CursorPos>, new_pos: usize) {
-    *cursor_pos.0.lock().unwrap() = Some(new_pos);
+    // *cursor_pos.0.lock().unwrap() = Some(new_pos);
+    if let Ok(mut state) = cursor_pos.0.lock() {
+        *state = Some(new_pos);
+    }
 }
 pub struct Cols(pub Mutex<Option<usize>>);
 #[tauri::command]
 pub fn set_cols(cols: tauri::State<'_, Cols>, new_cols: usize) {
-    *cols.0.lock().unwrap() = Some(new_cols);
+    // *cols.0.lock().unwrap() = Some(new_cols);
+    if let Ok(mut state) = cols.0.lock() {
+        *state = Some(new_cols);
+    }
 }
 pub struct Rows(pub Mutex<Option<usize>>);
 #[tauri::command]
 pub fn set_rows(rows: tauri::State<'_, Rows>, new_rows: usize) {
-    *rows.0.lock().unwrap() = Some(new_rows);
+    if let Ok(mut state) = rows.0.lock() {
+        *state = Some(new_rows);
+    }
 }
 struct Board {
     ships: Vec<bool>,
@@ -43,36 +51,14 @@ pub async fn run_game(
     rows_state: tauri::State<'_, Rows>,
     cols_state: tauri::State<'_, Cols>,
     ship_sizes: Vec<u8>,
-) -> Result<bool, ()> {
-    let rows = rows_state.0.lock().unwrap().unwrap().clone();
-    let cols = cols_state.0.lock().unwrap().unwrap().clone();
+    cam_id: usize,
+) -> Result<bool, String> {
+    let rows = rows_state.0.lock().unwrap().unwrap_or(10).clone();
+    let cols = cols_state.0.lock().unwrap().unwrap_or(10).clone();
     // let guard = port.0.unwrap().lock().unwrap();
-    port.run_port();
-
-    // Sound output setup
-    // let sl = Soloud::default().unwrap();
-    // let mut missile_sounds = [audio::Wav::default(),audio::Wav::default(),audio::Wav::default()];
-    // match missile_sounds[0].load(&std::path::Path::new("../public/sound/missil1.mp3")) {
-    //     Ok(_) => (),
-    //     Err(err) => println!("err: {}", err),
-    // };
-    // missile_sounds[1].load(&std::path::Path::new("../public/sound/missil2.mp3")).unwrap();
-    // missile_sounds[2].load(&std::path::Path::new("../public/sound/missil3.mp3")).unwrap();
-    // let mut hit_sounds = [audio::Wav::default(),audio::Wav::default(),audio::Wav::default()];
-    // hit_sounds[0].load(&std::path::Path::new("../public/sound/hit1.mp3")).unwrap();
-    // hit_sounds[1].load(&std::path::Path::new("../public/sound/hit2.mp3")).unwrap();
-    // hit_sounds[2].load(&std::path::Path::new("../public/sound/hit3.mp3")).unwrap();
-    // let mut miss_sounds = [audio::Wav::default(),audio::Wav::default(),audio::Wav::default()];
-    // miss_sounds[0].load(&std::path::Path::new("../public/sound/miss1.mp3")).unwrap();
-    // miss_sounds[1].load(&std::path::Path::new("../public/sound/miss2.mp3")).unwrap();
-    // miss_sounds[2].load(&std::path::Path::new("../public/sound/miss3.mp3")).unwrap();
-
-    // let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-    // let file = BufReader::new(File::open("../public/sound/missil2.mp3").unwrap());
-    // let source = Decoder::new(file).unwrap();
-    // let sink = Sink::try_new(&stream_handle).unwrap();
-    // sink.append(source);
-    // sink.sleep_until_end();
+    if let Err(err) = port.run_port() {
+        return Err(err);
+    }
 
 
     let mut is_my_turn = false;
@@ -195,8 +181,9 @@ pub async fn run_game(
     // let ships = vec![false; 100];
     let (py_tx, py_rx) = mpsc::channel();
     let (py_send_exit, py_recv_exit) = mpsc::channel();
-    println!("Get_ships");
-    get_ships(py_tx, py_recv_exit);
+    let (py_send_err, py_recv_err) = mpsc::channel();
+    // println!("Get_ships");
+    get_ships(py_tx, py_recv_exit, py_send_err, cam_id);
 
     loop {
         // Check if game should restart
@@ -207,7 +194,7 @@ pub async fn run_game(
         }
 
         if !is_own_ships_placed {
-            handle.emit_all("game-state", "Setup").unwrap();
+            _ = handle.emit_all("game-state", "Setup");
         }
 
         let mut fire = false;
@@ -217,6 +204,14 @@ pub async fn run_game(
         if py_res.is_ok() && !is_own_ships_placed {
             my_board.ships = py_res.unwrap();
         }
+
+        if let Ok(err) = py_recv_err.try_recv() {
+            println!("Py error: {}", err);
+            _ = handle.emit_all("error", err);
+            // restart = true;
+            // get_ships(py_tx, py_recv_exit, py_send_err);
+        }
+
         // Get board from camera
         // println!("Start python");
         // println!("End python");
@@ -230,14 +225,18 @@ pub async fn run_game(
 
         // Check for fire input from arduino
         // println!("Start fire");
-        let fire_res = port.arduino_try_get_fire();
-        // println!("End fire");
-        // let fire_res = port.arduino_get_joystick_direction();
-        if fire_res.is_some() {
-            fire = fire_res.unwrap();
-            // fire = input.tag == InputTag::Fire;
+        // let fire_res = port.arduino_try_get_fire();
+        if let Some(fire_res) = port.arduino_try_get_fire() {
+            fire = fire_res;
             println!("Fire: {}", fire);
         }
+        // println!("End fire");
+        // let fire_res = port.arduino_get_joystick_direction();
+        // if fire_res.is_some() {
+        //     fire = fire_res.unwrap();
+        //     // fire = input.tag == InputTag::Fire;
+        //     println!("Fire: {}", fire);
+        // }
 
         // Check to confirm ship positions (change to listen for arduino fire)
         if (fire || rx.try_recv().is_ok()) && !is_own_ships_placed {
@@ -250,22 +249,24 @@ pub async fn run_game(
             }
 
             if placed_ships == total_ships {
-                let res = port.arduino_send_board(my_board.ships.clone());
-                if res.is_ok() {
-                    let input = res.unwrap();
+                // let res = port.arduino_send_board(my_board.ships.clone());
+                // if res.is_ok() {
+                if let Ok(input) = port.arduino_send_board(my_board.ships.clone()) {
+                    // let input = res.unwrap();
                     if input.tag == InputTag::Turn {
                         is_my_turn = true;
                     }
                 }
                 is_own_ships_placed = true;
-                handle.emit_all("game-state", "WaitSetup").unwrap();
+                _ = handle.emit_all("game-state", "WaitSetup");
             }
         }
 
         // println!("Trying to get board");
-        let res = port.arduino_try_get_board();
-        if res.is_ok() {
-            let input = res.unwrap();
+        // let res = port.arduino_try_get_board();
+        // if res.is_ok() {
+        if let Ok(input) = port.arduino_try_get_board() {
+            // let input = res.unwrap();
             if input.tag == InputTag::Board {
                 println!("Got board");
                 let mut num_ships = 0;
@@ -289,28 +290,24 @@ pub async fn run_game(
         }
 
         // Send positions to frontend
-        handle
-            .emit_all("board-state", (&my_board).ships.clone())
-            .unwrap();
+        _ = handle.emit_all("board-state", (&my_board).ships.clone());
 
         // Check if game should start
         if is_own_ships_placed && is_opponents_ships_placed {
             if is_my_turn {
-                handle.emit_all("game-state", "YourTurn").unwrap();
+                _ = handle.emit_all("game-state", "YourTurn");
             } else {
-                handle.emit_all("game-state", "OtherTurn").unwrap();
+                _ = handle.emit_all("game-state", "OtherTurn");
             }
             break;
         }
 
         // thread::sleep(Duration::from_millis(10));
     }
-    py_send_exit.send(true).unwrap();
+    _ = py_send_exit.send(true);
 
     if !restart {
-        handle
-            .emit_all("board-state", (&my_board).ships.clone())
-            .unwrap();
+        _ = handle.emit_all("board-state", (&my_board).ships.clone());
 
         // Avoid missfire
         thread::sleep(Duration::from_millis(500));
@@ -336,12 +333,22 @@ pub async fn run_game(
         // }
 
         // let cursor_pos = cursor_pos_state.0.lock().unwrap().unwrap();
+        // let cursor_pos;
         let cursor_pos_state_clone = cursor_pos_state.clone();
-        let cursor_pos = cursor_pos_state_clone.0.lock().unwrap().unwrap();
-        let res = port.arduino_get_joystick_direction();
+        let cursor_pos_state_clone_2 = cursor_pos_state.clone();
+        // let cursor_pos = cursor_pos_state_clone.0.lock().unwrap().unwrap();
+        // if let Ok(state_option) = cursor_pos_state_clone.0.lock() {
+        //     if state_option.is_some() {
+        //         cursor_pos = state_option.unwrap();
+        //     }
+        // }
+        // let res = port.arduino_get_joystick_direction();
 
-        if res.is_ok() {
-            let input = res.unwrap();
+        // if res.is_ok() {
+        _ = handle.emit_all("error", "Trying to get dir");
+        if let Ok(input) = port.arduino_get_joystick_direction() {
+            _ = handle.emit_all("error", "Got dir");
+            // let input = res.unwrap();
             match input.tag {
                 InputTag::Reset => restart = true,
                 InputTag::Board => (),
@@ -361,78 +368,105 @@ pub async fn run_game(
                 }
                 InputTag::End => {
                     arduino_end = true;
-                    handle.emit_all("game-state", "Defeat").unwrap();
+                    _ = handle.emit_all("game-state", "Defeat");
                     break;
                 }
                 InputTag::Turn => {
                     is_my_turn = true;
-                    handle.emit_all("game-state", "YourTurn").unwrap();
+                    _ = handle.emit_all("game-state", "YourTurn");
                 }
             }
-            if input.turn.is_some() {
-                if input.turn.unwrap() {
-                    is_my_turn = true;
-                    handle.emit_all("game-state", "YourTurn").unwrap();
-                };
+            // if input.turn.is_some() {
+            if let Some(turn) = input.turn {
+                is_my_turn = turn;
+                if turn {
+                _ = handle.emit_all("game-state", "YourTurn");
+                }
             }
         }
-        // is_my_turn = true;
-        // Do turn
-        if is_my_turn {
-            // Game has started, wait for fire command
-            if (fire || rx.try_recv().is_ok()) && !((&mut their_board).hits[cursor_pos]) {
-                // Handle fire
-                // Change hit state
-                (&mut their_board).hits[cursor_pos] = true;
-                if their_board.ships[cursor_pos] {
-                    // Enemy ship was hit
-                    their_board.ships_left -= 1;
-                    handle.emit_all("enemy-board-hit", cursor_pos).unwrap();
-                    thread::sleep(Duration::from_millis(1750));
-                    port.arduino_hit(cursor_pos).unwrap();
-                } else {
-                    // Miss
-                    handle.emit_all("enemy-board-miss", cursor_pos).unwrap();
-                    thread::sleep(Duration::from_millis(1750));
-                    port.arduino_miss(cursor_pos).unwrap();
+
+        if let Ok(state) = cursor_pos_state_clone_2.0.lock() {
+            if state.is_some() {
+                let cursor_pos = state.unwrap();
+            // }
+            // if let Some(cursor_pos) = state {
+                // is_my_turn = true;
+                // Do turn
+                if is_my_turn {
+                    // Game has started, wait for fire command
+                    if (fire || rx.try_recv().is_ok()) && !((&mut their_board).hits[cursor_pos]) {
+                        // Handle fire
+                        // Change hit state
+                        (&mut their_board).hits[cursor_pos] = true;
+                        if their_board.ships[cursor_pos] {
+                            // Enemy ship was hit
+                            their_board.ships_left -= 1;
+                            _ = handle.emit_all("enemy-board-hit", cursor_pos);
+                            thread::sleep(Duration::from_millis(1750));
+                            if let Err(err) = port.arduino_hit(cursor_pos) {
+                                println!("{err}");
+                                _ = handle.emit_all("error", err);
+                            }
+                        } else {
+                            // Miss
+                            _ = handle.emit_all("enemy-board-miss", cursor_pos);
+                            thread::sleep(Duration::from_millis(1750));
+                            if let Err(err) = port.arduino_miss(cursor_pos) {
+                                println!("{err}");
+                                _ = handle.emit_all("error", err);
+                            }
+                        }
+                        is_my_turn = false;
+                        _ = handle.emit_all("game-state", "OtherTurn");
+                    }
                 }
-                is_my_turn = false;
-                handle.emit_all("game-state", "OtherTurn").unwrap();
             }
         }
 
         // Check game end condition, if ships left == 0
         if (&their_board).ships_left == 0 {
             // Victory
-            handle.emit_all("game-state", "Win").unwrap();
+            _ = handle.emit_all("game-state", "Win");
             break;
         }
         if (&my_board).ships_left == 0 {
             // Defeat
-            handle.emit_all("game-state", "Defeat").unwrap();
+            _ = handle.emit_all("game-state", "Defeat");
             break;
         }
     }
 
     if restart {
-        port.arduino_reset().unwrap();
+        _ = handle.emit_all("game-state", "PreSetup");
+        if let Err(err) = port.arduino_reset() {
+            println!("{err}");
+            _ = handle.emit_all("error", err);
+        }
     } else {
         // Avoid send end back and forth
         if !arduino_end {
-            port.arduino_end().unwrap();
+            if let Err(err) = port.arduino_end() {
+                println!("{err}");
+                _ = handle.emit_all("error", err);
+            }
         }
         // Wait for fire button to be pressed before restarting
         loop {
-            let mut fire = false;
-            let fire_res = port.arduino_try_get_fire();
-            if fire_res.is_some() {
-                fire = fire_res.unwrap();
+            // let mut fire = false;
+            // let fire_res = port.arduino_try_get_fire();
+            // if fire_res.is_some() {
+            if let Some(_) = port.arduino_try_get_fire() {
+                // fire = fire_res.unwrap();
+                break;
             }
-            if (fire || rx.try_recv().is_ok())  {
+            if rx.try_recv().is_ok() {
                 break;
             }   
         }
-        port.arduino_reset().unwrap();
+        if let Err(err) = port.arduino_reset() {
+            println!("{err}");
+            _ = handle.emit_all("error", err);
+        }
     }
 
     match port.close_port() {
@@ -507,10 +541,11 @@ pub fn move_cursor(
             change = 0;
         }
     }
-    *cursor_pos_state.0.lock().unwrap() = Some((cursor_pos as i32 + change) as usize);
-    handle
-        .emit_all("update-cursor-pos", cursor_pos as i32 + change)
-        .unwrap();
+    if let Ok(mut state) = cursor_pos_state.0.lock(){
+        *state = Some((cursor_pos as i32 + change) as usize);
+    }
+    _ = handle
+        .emit_all("update-cursor-pos", cursor_pos as i32 + change);
 }
 
 fn move_cursor_by_dir(
@@ -547,11 +582,13 @@ fn move_cursor_by_dir(
     //         // change = 0;
     //     }
     // }
-    *cursor_pos_state.0.lock().unwrap() = Some(cursor.selected(rows, cols));
-    handle.emit_all("update-2d-cursor-pos", *cursor).unwrap();
-    handle
-        .emit_all("update-cursor-pos", cursor.selected(rows, cols))
-        .unwrap();
+    // *cursor_pos_state.0.lock().unwrap() = Some(cursor.selected(rows, cols));
+    if let Ok(mut cursor_pos) = cursor_pos_state.0.lock() {
+        *cursor_pos = Some(cursor.selected(rows, cols));
+    }
+
+    _ = handle.emit_all("update-2d-cursor-pos", *cursor);
+    _ = handle.emit_all("update-cursor-pos", cursor.selected(rows, cols));
 }
 
 // fn move_cursor_by_dir(

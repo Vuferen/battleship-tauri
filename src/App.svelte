@@ -31,6 +31,9 @@
 		Win,
 		Defeat,
 	}
+
+
+
 	let gameStates = ["PreSetup", "Setup", "WaitSetup", "YourTurn", "OtherTurn", "Win", "Defeat"];
 
 	interface Cell {
@@ -58,12 +61,44 @@
 	let boardSize = 800;
 	let boardGap = 5;
 	let cursor = { x: 0, y: 0 };
-	let debugText = "";
+	let debugText = "No errors";
+	let devices = [];
+	let selectedDevice;
+	let cameraIndex = 0;
 
 	createEmptyBoards();
 
 	function getCellClasses(cell, cursorPosition) {
 		return (cell.index == cursorPosition ? "selected-cell " : " ") + (cell.ship ? "ship-cell " : " ") + (cell.hit ? "hit-cell " : " ");
+	}
+
+	function setGameState(state) {
+		console.log(state);
+		switch (state) {
+				case "PreSetup":
+					gameState = GameState.PreSetup;
+					break;
+				case "Setup":
+					gameState = GameState.Setup;
+					break;
+				case "WaitSetup":
+					gameState = GameState.WaitSetup;
+					break;
+				case "YourTurn":
+					gameState = GameState.YourTurn;
+					break;
+				case "OtherTurn":
+					gameState = GameState.OtherTurn;
+					break;
+				case "Win":
+					gameState = GameState.Win;
+					break;
+				case "Defeat":
+					gameState = GameState.Defeat;
+					break;
+				default:
+					break;
+		}
 	}
 
 	onMount(async () => {
@@ -115,7 +150,7 @@
 			myBoard[event.payload].hit = true;
 			myBoard = myBoard;
 		});
-		await listen<String>("game-state", (event) => {
+		await listen<string>("game-state", (event) => {
 			setGameState(event.payload);
 		});
 		await listen<number>("update-cursor-pos", (event) => {
@@ -126,42 +161,74 @@
 			cursor = event.payload;
 		});
 
+		await listen<string>("error", (event) => {
+			debugText = event.payload;
+			console.log(event.payload);
+		})
+
 		await invoke("set_cursor_pos", { newPos: cursorPosition });
 		await invoke("set_cols", { newCols: cols });
 		await invoke("set_rows", { newRows: rows });
+		
+		getCaptureDevices();
+
+		// setCaptureDevice(devices[1].deviceId);
+		// console.log(devices);
+		// const video: HTMLMediaElement = document.querySelector('#video');
+		// video = videoStream;
+		// $: if (stream && video.srcObject !== stream) {
+		// video.srcObject = stream;
+		// }
 	});
 
-	function setGameState(state) {
-		switch (state) {
-				case "PreSetup":
-					gameState = GameState.PreSetup;
-				case "Setup":
-					gameState = GameState.Setup;
-					break;
-				case "WaitSetup":
-					gameState = GameState.WaitSetup;
-					break;
-				case "YourTurn":
-					gameState = GameState.YourTurn;
-					break;
-				case "OtherTurn":
-					gameState = GameState.OtherTurn;
-					break;
-				case "Win":
-					gameState = GameState.Win;
-					break;
-				case "Defeat":
-					gameState = GameState.Defeat;
-					break;
-				default:
-					break;
+	async function getCaptureDevices() {
+		const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+		let mediaDevices = await navigator.mediaDevices.enumerateDevices();
+
+		devices = mediaDevices;
+		if (devices.length > 0) {
+			selectedDevice = devices[0];
+			setCaptureDevice(selectedDevice.deviceId);
 		}
 	}
+
+	async function setCaptureDevice(deviceId) {
+		const video: HTMLMediaElement = document.querySelector('#video');
+		const stream = await navigator.mediaDevices.getUserMedia({
+			video: {
+				deviceId: {
+					exact: deviceId
+				}
+			}
+		});
+		video.srcObject = stream;
+
+		cameraIndex = devices.findIndex(x => x.deviceId == deviceId);
+	}
+
+	function stopCaptureDevice() {
+		// const stream = await navigator.mediaDevices.getUserMedia({
+		// 	video: {
+		// 		deviceId: {
+		// 			exact: deviceId
+		// 		}
+		// 	}
+		// });
+		// stream.stop();
+		const video: HTMLMediaElement = document.querySelector('#video');
+		video.srcObject = null;
+	}
+
+
 	
 
 	async function startGame() {
 		createEmptyBoards();
-		await invoke("run_game", { shipSizes: shipSizes });
+		stopCaptureDevice();
+		await invoke("run_game", { shipSizes: shipSizes, camId: cameraIndex }).catch(error => {
+			console.log(error);
+			debugText = error;
+		});
 	}
 
 	async function restartGame() {
@@ -218,9 +285,9 @@
 			case GameState.OtherTurn:
 				return "";
 			case GameState.Win:
-				return "Congratulations you won!";
+				return "";
 			case GameState.Defeat:
-				return "Defeat :(";
+				return "";
 		}
 	}
 
@@ -232,9 +299,9 @@
 
 <main>
 	<div class="fixed top-5 right-5 flex flex-col gap-2 text-left z-[100]">
-		<button on:click={restartGame} class="w-min">Restart</button>
-		<button on:click={toggleDebug} class="w-min">Debug</button>
-		<button on:click={() => appWindow.close()} class="w-min">Close</button>
+		<button on:click={restartGame} class="">Restart</button>
+		<button on:click={toggleDebug} class="">Debug</button>
+		<button on:click={() => appWindow.close()} class="">Close</button>
 	</div>
 	{#if debug}
 		<div class=" fixed top-5 left-5 flex flex-col text-left z-[100]">
@@ -255,6 +322,8 @@
 				<input type="range" name="" id="" min="400" max="1000" bind:value={boardSize} />
 				{boardSize}
 			</label>
+			<span class=" text-red-700">{debugText}</span>
+			<span>Camera index: {cameraIndex}</span>
 			<!-- <label for="gamestate" class="flex flex-col text-left">
 				Gamestate:
 				<select bind:value={gameState} name="gamestate" class="h-9 p-2 rounded-md">
@@ -285,19 +354,45 @@
 
 	<h1 style="max-width: {boardSize}; height: 57px;" class="mb-5" transition:slide>{getGameStateText(gameState, port_connected)}</h1>
 
+	<!-- Overlay when waiting for turn -->
 	{#if gameState == GameState.OtherTurn && !isAudioPlaying}
-		<div style="background-color: rgba(0,0,0,0.5);" class="wait-turn-popup fixed w-full h-full grid items-center top-0 left-0 z-[80]">
+		<div style="background-color: rgba(0,0,0,0.5);" class="pop-up fixed w-full h-full grid items-center top-0 left-0 z-[80]">
 			<h1>Wait for enemy turn</h1>
 		</div>
 	{/if}
 
-	<div style="filter: blur({(gameState == GameState.OtherTurn && !isAudioPlaying) ? 5 : 0}px);" class="grid place-content-center">
+	<!-- Overlay when game ends -->
+	{#if (gameState == GameState.Win || gameState == GameState.Defeat) && !isAudioPlaying}
+		<div style="background-color: rgba(0,0,0,0.5);" class="pop-up fixed w-full h-full grid items-center top-0 left-0 z-[80]">
+			{#if gameState == GameState.Win}
+				<h1 class=" font-bold">Congratulations you won!</h1>
+			{:else if gameState == GameState.Defeat}
+				<h1 class=" font-bold">Defeat :(</h1>
+			{/if}
+		</div>
+	{/if}
+
+	<div style="filter: blur({((gameState == GameState.OtherTurn || gameState == GameState.Win || gameState == GameState.Defeat) && !isAudioPlaying) ? 5 : 0}px);" class="grid place-content-center game-area">
 		{#if gameState == GameState.PreSetup}
 			{#if !port_connected}
 				<PickPort bind:port_connected />
 			{:else}
 				<button on:click={startGame}>Start game</button>
 			{/if}
+			<div>
+				<label for="devices" class="flex flex-col text-left mb-4 mt-4">
+					Camera:
+					<div class="grid grid-cols-[1fr,auto] gap-3">
+						<select bind:value={selectedDevice} on:change={() => setCaptureDevice(selectedDevice.deviceId)} name="ports" class="h-9 p-2 rounded-md">
+							{#each devices as device}
+							<option value={device}>{device.label}</option>
+							{/each}
+						</select>
+						<button on:click={() => getCaptureDevices()} class="pt-2 pb-2 h-9 leading-none">Refresh</button>
+					</div>
+				</label>
+				<video autoplay id="video"></video>
+			</div>
 		{:else if gameState == GameState.Setup || gameState == GameState.WaitSetup}
 			<div style="grid-template-columns: repeat({cols}, auto); grid-template-rows: repeat({rows}, auto);" class="board my grid gap-2 w-fit">
 				{#each myBoard as cell, i}
@@ -376,6 +471,16 @@
 		border-radius: 100%;
 		transform: translate(-5px, -5px);
 	} */
+	.game-area {
+		transition: filter 0.5s;
+		transition-timing-function: ease-in;
+	}
+
+	.pop-up {
+		transition: all 0.5s;
+		transition-timing-function: ease-in;
+	}
+
 	.radar {
 		background-color: #05fb11;
 		border-radius: 50%;

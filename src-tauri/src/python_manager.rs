@@ -3,7 +3,7 @@ use std::{sync::mpsc::{Sender, Receiver}, thread::{self, JoinHandle}};
 
 use tauri::api::process::{Command};
 
-pub fn get_ships(py_tx: Sender<Vec<bool>>, exit: Receiver<bool>) -> JoinHandle<()> {
+pub fn get_ships(py_tx: Sender<Vec<bool>>, exit: Receiver<bool>, err: Sender<String>, device_id: usize) -> JoinHandle<()> {
 
     let handle = thread::spawn(move || {
         loop {
@@ -11,24 +11,37 @@ pub fn get_ships(py_tx: Sender<Vec<bool>>, exit: Receiver<bool>) -> JoinHandle<(
                 break;
             }
 
-            let output = Command::new_sidecar("scanner").unwrap().output().unwrap();
-            let line = output.stdout;
+            // let output = Command::new_sidecar("scanner").unwrap().output().unwrap();
+            let output;
+            if let Ok(res) = Command::new_sidecar("scanner").and_then(|op| Ok(op.args([device_id.to_string()]).output())) {
+                if let Ok(out) = res {
+                    output = out;
 
-            let start_index = line.find('[');
-            let end_index = line.find(']');
-            if start_index.is_some() && end_index.is_some() {
-                let arr_string = line[start_index.unwrap()+1..end_index.unwrap()].to_string();
-                // println!("{}", arr_string);
-                let cells = arr_string.split(", ").filter_map(|s| s.parse::<i32>().ok())
-                .collect::<Vec<_>>();
-                
-                let mut ships = vec![false; 100];
-                for (i, cell) in cells.iter().enumerate() {
-                    ships[i] = *cell == 1;
+                    let line = output.stdout;
+
+                    let start_index = line.find('[');
+                    let end_index = line.find(']');
+                    if start_index.is_some() && end_index.is_some() {
+                        let arr_string = line[start_index.unwrap()+1..end_index.unwrap()].to_string();
+                        // println!("{}", arr_string);
+                        let cells = arr_string.split(", ").filter_map(|s| s.parse::<i32>().ok())
+                        .collect::<Vec<_>>();
+                        
+                        let mut ships = vec![false; 100];
+                        for (i, cell) in cells.iter().enumerate() {
+                            ships[i] = *cell == 1;
+                        }
+                        ships.reverse(); // 180deg rotation
+                        _ = py_tx.send(ships);
+                    }
+                    
+                } else {
+                    _ = err.send("Failed to get py output".to_string());
                 }
-                ships.reverse(); // 180deg rotation
-                py_tx.send(ships).unwrap();
+            } else {
+                _ = err.send("Failed to get py sidecar".to_string());
             }
+            
 
 
 

@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import array
-# import sys
+import sys
 
 def reorder(pts):
     pts = np.array(pts).reshape((4, 2))
@@ -199,13 +199,13 @@ def refresh(Board_Position, X_Offset, Y_Offset, pos, cap, corners, boat_offset):
 
 # corners = [[0,0], [0,0], [0,0], [0,0]]
 
-def GetShips():
+def GetShips(deviceId):
     Board_PositionGlobal = ([0, 0, 0, 0])
 
     X_OffsetGlobal = 0
     Y_OffsetGlobal = 0
 
-    capGlobal = cv2.VideoCapture(1)
+    capGlobal = cv2.VideoCapture(deviceId)
 
     posGlobal = array.array('l', 100 * [0])
 
@@ -223,7 +223,7 @@ def GetShips():
     #         break
 
 if __name__ == "__main__":
-    GetShips()
+    GetShips(int(sys.argv[1]))
 # capGlobal.release()
 # cv2.destroyAllWindows()
 

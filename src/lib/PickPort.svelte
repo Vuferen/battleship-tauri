@@ -56,8 +56,8 @@
 
 <div class="flex flex-col items-center">
 	<p class=" text-red-700 h-7">{errorMessage}</p>
-	<div class="flex flex-col">
-		<div class="mt-4 flex flex-row gap-3 items-end">
+	<div class="flex flex-col w-full">
+		<div class="mt-4 grid grid-cols-[1fr,1fr,auto] gap-3 items-end w-full">
 			<label for="ports" class="flex flex-col text-left">
 				Port:
 				<select bind:value={selected} on:change={() => getPort(selected)} name="ports" class="h-9 p-2 rounded-md">

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serialport::{FlowControl, SerialPort};
 use std::io::{BufRead, BufReader};
+use std::sync::MutexGuard;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Instant;
 use std::{str, thread};
@@ -49,7 +50,7 @@ impl SerialDriver {
     }
 
     pub fn arduino_reset(&self) -> Result<String, String> {
-        match self.write("7\n") {
+        match self.write("0\n") {
             Ok(text) => return Ok(text),
             Err(err) => return Err(format!("Could not write: {}", err)),
         };
@@ -160,10 +161,12 @@ impl SerialDriver {
             Ok(text) => input = text,
             Err(_) => return None,
         };
-        let res = SerialDriver::handle_response(input);
-        if res.is_ok() {
-            if res.unwrap().tag == InputTag::Fire {
+        // let res = SerialDriver::handle_response(input);
+        if let Ok(res) = SerialDriver::handle_response(input) {
+            if res.tag == InputTag::Fire {
                 return Some(true);
+            } else if res.tag == InputTag::Reset {
+                return Some(false);
             }
         }
         return None;
@@ -175,9 +178,9 @@ impl SerialDriver {
             Ok(text) => input = text,
             Err(_) => return None,
         };
-        let res = SerialDriver::handle_response(input);
-        if res.is_ok() {
-            if res.unwrap().tag == InputTag::Turn {
+        // let res = SerialDriver::handle_response(input);
+        if let Ok(res) = SerialDriver::handle_response(input) {
+            if res.tag == InputTag::Turn {
                 return Some(true);
             }
         }
@@ -282,29 +285,73 @@ impl SerialDriver {
     }
 
     fn write(&self, text: &str) -> Result<String, String> {
-        (self.writer_send.lock().unwrap().as_ref().unwrap())
-            .send(text.to_string())
-            .unwrap();
-        let res = (self.buffer_recv.lock().unwrap().as_ref().unwrap()).recv();
+        // (self.writer_send.lock().unwrap().as_ref().unwrap())
+        //     .send(text.to_string())
+        //     .unwrap();
 
-        match res {
-            Ok(text) => return Ok(text),
-            Err(err) => return Err(format!("Reciever error: {}", err)),
+        // Send text to arduino
+        if let Ok(writer_option) = self.writer_send.lock() {
+            if writer_option.is_some() {
+                let writer = writer_option.as_ref().unwrap();
+                _ = writer.send(text.to_string())
+            }
         }
+
+        // Recieve text from arduino
+        // let res = Err("Could not lock receive buffer".to_string());
+        if let Ok(res_option) = self.buffer_recv.lock() {
+            if res_option.is_some() {
+                let res = res_option.as_ref().unwrap().recv();
+                match res {
+                    Ok(text) => return Ok(text),
+                    Err(err) => return Err(format!("Reciever error: {}", err)),
+                }
+            }
+        }
+        // let res = (self.buffer_recv.lock().unwrap().as_ref().unwrap()).recv();
+
+        return Err("Could not lock receive buffer".to_string());
     }
 
-    pub fn run_port(&self) {
+    pub fn run_port(&self) -> Result<(), String> {
         let (sender, writer) = mpsc::channel();
-        *self.writer_send.lock().unwrap() = Some(sender);
+        // *self.writer_send.lock().unwrap() = Some(sender);
+        if let Ok(mut ws) = self.writer_send.lock() {
+            *ws = Some(sender);
+        } else {
+            return Err("Could not create sender".to_string());
+        }
 
         let (buffer, buffer_recv) = mpsc::channel();
-        *self.buffer_recv.lock().unwrap() = Some(buffer_recv);
+        // *self.buffer_recv.lock().unwrap() = Some(buffer_recv);
+        if let Ok(mut br) = self.buffer_recv.lock() {
+            *br = Some(buffer_recv);
+        } else {
+            return Err("Could not create receive buffer".to_string());
+        }
 
         let (exit_sender, exit_recv) = mpsc::channel();
-        *self.exit_send.lock().unwrap() = Some(exit_sender);
+        // *self.exit_send.lock().unwrap() = Some(exit_sender);
+        if let Ok(mut es) = self.exit_send.lock() {
+            *es = Some(exit_sender);
+        } else {
+            return Err("Could not create exit sender".to_string());
+        }
 
-        let port_name = (&*self.port.lock().expect("No port")).clone();
-        let baudrate = *self.baudrate.lock().expect("No baudrate");
+        // let port_name = (&*self.port.lock().expect("No port")).clone();
+        let port_name;
+        if let Ok(pn) = self.port.lock() {
+            port_name = (*pn).clone();
+        } else {
+            return Err("Could not get port name".to_string());
+        }
+        // let baudrate = *self.baudrate.lock().expect("No baudrate");
+        let baudrate;
+        if let Ok(br) = self.baudrate.lock() {
+            baudrate = *br;
+        } else {
+            return Err("Could not get baudrate".to_string());
+        }
 
         thread::spawn(move || {
             let mut exit = false;
@@ -313,7 +360,8 @@ impl SerialDriver {
 
                 if !port.is_some() {
                     match open_port(port_name.as_str(), baudrate) {
-                        Ok(res) => {
+                        Ok(mut res) => {
+                            res.set_flow_control(FlowControl::Hardware).expect("Could not set flow control");
                             port = Some(res);
                         }
                         Err(_) => exit = true,
@@ -334,12 +382,12 @@ impl SerialDriver {
 
                 if port.is_some() {
                     let mut the_port = port.unwrap();
-                    the_port.set_flow_control(FlowControl::Hardware).unwrap();
+                    // the_port.set_flow_control(FlowControl::Hardware).expect("Could not set flow control");
                     let res = writer.try_recv();
 
                     if res.as_ref().is_ok() {
                         let output = res.as_ref().unwrap().as_bytes();
-                        the_port.write(output).unwrap();
+                        _ = the_port.write(output);
                         let mut reader = BufReader::new(the_port);
                         let mut input = String::new();
                         let now = Instant::now();
@@ -350,11 +398,12 @@ impl SerialDriver {
                             }
                             // Add timeout here
                         }
-                        buffer.send(input).unwrap();
+                        _ = buffer.send(input);
                     }
                 }
             }
         });
+        return Ok(());
     }
 
     pub fn close_port(&self) -> Result<(),String> {
@@ -419,8 +468,18 @@ pub fn pick_port(
     {
         Ok(_) => {
             // (*port).0 = Some(Mutex::new(res));
-            *port.port.lock().unwrap() = port_name;
-            *port.baudrate.lock().unwrap() = baudrate;
+            // *port.port.lock().unwrap() = port_name;
+            if let Ok(mut name) = port.port.lock() {
+                *name = port_name;
+            } else {
+                return Err(format!("Failed to set port name: {}", port_name).into());
+            }
+            // *port.baudrate.lock().unwrap() = baudrate;
+            if let Ok(mut baud) = port.baudrate.lock() {
+                *baud = baudrate;
+            } else {
+                return Err(format!("Failed to set baudrate: {}", baudrate).into());
+            }
             return Ok("Port saved".into());
         }
         Err(err) => return Err(format!("Failed to open port {}: {}", port_name, err).into()),
