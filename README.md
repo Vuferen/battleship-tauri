@@ -1,6 +1,6 @@
-# Tauri + Svelte + Typescript
+# Battleship game for use with arduino controllers
 
-This template should help get you started developing with Tauri, Svelte and TypeScript in Vite.
+This is the game code for Battleship. It is meant to be used in a multiplayer setup with two Arduinos running the code found in src-arduino.
 
 ## Recommended IDE Setup
 
