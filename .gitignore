@@ -23,6 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 build/*
-src-tauri/bin
-src-tauri/target
-src-python/build
+src-tauri/bin/*
+src-tauri/target/*
+src-python/build/*
